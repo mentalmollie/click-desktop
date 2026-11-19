@@ -627,7 +627,7 @@ function position() {
   return Math.min(Math.max(p, 0), media.dur);
 }
 
-// Тексты — из той же открытой базы LRCLIB, которой пользуется Island
+// Тексты — из открытой базы LRCLIB
 async function loadLyrics(m, key) {
   lyricsFor = key;
   synced = null;
@@ -744,24 +744,24 @@ const DOW_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 async function loadWeather() {
   const { weather: w } = await dock.config();
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${w.lat}&longitude=${w.lon}&timezone=auto&forecast_days=7` +
-      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day' +
-      '&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min';
-    const d = await (await fetch(url)).json();
+    const result = await dock.weather();
+    if (!result.ok) throw new Error(result.message);
+    const d = result.data;
     const c = d.current;
     $('#wNowIcon').innerHTML = weatherIcon(c.weather_code, c.is_day);
     $('#wNowTemp').textContent = `${Math.round(c.temperature_2m)}°`;
-    $('#wNowDesc').textContent = `${weatherText(c.weather_code)} · ${w.city}`;
+    $('#wNowDesc').textContent = `${weatherText(c.weather_code)} · ${w.city} · Яндекс Погода`;
     $('#wMeta').innerHTML = '';
-    for (const t of [`Ощущается как ${Math.round(c.apparent_temperature)}°`, `Ветер ${Math.round(c.wind_speed_10m / 3.6)} м/с`, `Влажность ${c.relative_humidity_2m}%`]) {
+    for (const t of [c.apparent_temperature == null ? null : `Ощущается как ${Math.round(c.apparent_temperature)}°`, c.wind_speed_10m == null ? null : `Ветер ${Math.round(c.wind_speed_10m / 3.6)} м/с`, c.relative_humidity_2m == null ? null : `Влажность ${c.relative_humidity_2m}%`].filter(Boolean)) {
       $('#wMeta').appendChild(Object.assign(document.createElement('span'), { textContent: t }));
     }
 
-    const start = d.hourly.time.findIndex((t) => new Date(t) > new Date()) - 1;
+    const next = d.hourly.time.findIndex((t) => new Date(t) > new Date());
+    const start = next < 0 ? d.hourly.time.length : Math.max(0, next - 1);
     $('#wHours').innerHTML = '';
     // Часов показываем столько, сколько помещается по ширине окна
     const hours = Math.max(3, Math.min(24, Math.floor($('#wHours').clientWidth / 50)));
-    for (let k = Math.max(start, 0); k < Math.max(start, 0) + hours; k++) {
+    for (let k = Math.max(start, 0); k < Math.min(d.hourly.time.length, start + hours); k++) {
       const h = document.createElement('div');
       h.className = 'h';
       h.innerHTML = `<span>${k === start ? 'Сейчас' : d.hourly.time[k].slice(11, 16)}</span><svg viewBox="0 0 24 24">${weatherIcon(d.hourly.weather_code[k], d.hourly.is_day[k])}</svg><span>${Math.round(d.hourly.temperature_2m[k])}°</span>`;
@@ -779,10 +779,15 @@ async function loadWeather() {
         `<span class="range-bar"><span class="min">${Math.round(min)}°</span><span class="bar"><i style="left:${left}%;right:${right}%"></i></span><span>${Math.round(max)}°</span></span>`;
       $('#wDays').appendChild(row);
     });
-  } catch {
-    $('#wNowDesc').textContent = 'Нет связи с сервером погоды';
+  } catch (e) {
+    for (const id of ['wNowIcon', 'wMeta', 'wHours', 'wDays']) $('#' + id).replaceChildren();
+    $('#wNowTemp').textContent = '—';
+    $('#wNowDesc').textContent = e.message;
   }
 }
+
+$('#weatherSource').addEventListener('click', () => dock.weatherWebsite());
+$('#weatherSettings').addEventListener('click', () => dock.openSettingsPage('weather'));
 
 // ---------- Календарь ----------
 

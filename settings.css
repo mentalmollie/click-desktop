@@ -1,4 +1,4 @@
-/* Тёмная графитовая тема в духе настроек Island */
+/* Тёмная графитовая тема */
 :root {
   --bg: #1b1c1f;
   --side: #151618;
@@ -108,7 +108,7 @@ h1 { font: 600 20px/1.2 var(--font-display); margin-bottom: 16px; }
 .section-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin: 20px 0 8px 4px; }
 .note { font-size: 12px; color: var(--muted); margin: -4px 4px 14px; line-height: 1.5; }
 
-/* Переключатель — сиреневый, как в Island */
+/* Переключатель — сиреневый */
 .switch { position: relative; width: 44px; height: 24px; flex: none; }
 .switch input { opacity: 0; position: absolute; inset: 0; margin: 0; z-index: 1; }
 .switch span { position: absolute; inset: 0; border-radius: 12px; background: #2b2c30; border: 1px solid #3a3b40; transition: background .18s, border-color .18s; }
@@ -148,7 +148,7 @@ button:disabled { opacity: .5; cursor: default; }
 .update-error { color: var(--red); }
 #updateProgress { width: 100%; height: 8px; accent-color: var(--accent); }
 
-/* Чипы — как «Модули» в Island */
+/* Чипы */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px;
@@ -210,9 +210,7 @@ button:disabled { opacity: .5; cursor: default; }
 .icon-btn { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); flex: none; }
 .icon-btn:hover { background: var(--chip); color: var(--red); }
 
-/* Island */
-.island-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.island-head img { width: 40px; height: 40px; border-radius: 10px; }
+
 .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: #55565c; }
 .dot.on { background: #4cd964; }
 
@@ -305,3 +303,9 @@ button:disabled { opacity: .5; cursor: default; }
 .city + .city { border-top: 1px solid #222326; }
 .city:hover { background: #202124; }
 .city .pick { color: var(--accent); font-size: 12px; }
+/* История версий */
+.release-card { padding: 20px; margin-top: 16px; }
+.release-card h2 { margin: 0 0 8px; font-size: 18px; }
+.release-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; font-size: 13px; }
+#weatherKey { min-width: 0; flex: 1; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--input); border: 1px solid #2c2d31; color: var(--text); font: inherit; outline: none; }
+#weatherKey:focus { border-color: var(--accent); }

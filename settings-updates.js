@@ -26,6 +26,29 @@
   el('updateInstall').addEventListener('click', () => perform('updateInstall'));
   el('updateCancel').addEventListener('click', () => dock.updateCancel());
   el('updateWebsite').addEventListener('click', () => dock.updateWebsite());
+  el('updateGithub').addEventListener('click', () => dock.updateGithub());
+  let historyBusy = false;
+  async function history() {
+    if (historyBusy) return;
+    historyBusy = true;
+    el('releaseHistoryRefresh').disabled = true;
+    try {
+      const result = await dock.updateHistory();
+      el('releaseHistoryStatus').textContent = result.offline ? 'GitHub недоступен. Показаны изменения установленной версии.' : 'История версий из GitHub Releases.';
+      el('releaseHistory').replaceChildren();
+      for (const r of result.releases) {
+        const card = document.createElement('article'); card.className = 'card release-card';
+        const title = document.createElement('h2'); title.textContent = 'Click ' + r.version;
+        const notes = document.createElement('div'); notes.className = 'release-body'; notes.textContent = r.notes || 'Описание этой версии пока не добавлено.';
+        card.append(title);
+        if (r.date && Number.isFinite(Date.parse(r.date))) { const date = document.createElement('p'); date.className = 'desc'; date.textContent = new Date(r.date).toLocaleDateString('ru-RU'); card.append(date); }
+        card.append(notes); el('releaseHistory').append(card);
+      }
+    } catch { el('releaseHistoryStatus').textContent = 'Не удалось загрузить историю версий. Попробуйте ещё раз.'; }
+    finally { historyBusy = false; el('releaseHistoryRefresh').disabled = false; }
+  }
+  el('releaseHistoryRefresh').addEventListener('click', history);
+  document.querySelector('[data-page="whatsnew"]').addEventListener('click', history);
   dock.onUpdateStatus(render);
   perform('updateStatus');
 })();

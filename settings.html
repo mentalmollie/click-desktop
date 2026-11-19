@@ -20,7 +20,6 @@
       <hr>
       <button data-page="apps"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>Приложения</button>
       <button data-page="widgets"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Виджеты</button>
-      <button data-page="island"><svg viewBox="0 0 24 24"><rect x="4" y="8.5" width="16" height="7" rx="3.5"/><circle cx="16.5" cy="12" r="1.2" class="solid"/></svg>Island</button>
       <button data-page="assistant"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4.5"/><path d="M5 20.5c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/><path d="M8.5 7.5c1-1.8 2.2-2.6 3.5-2.6 1.6 0 2.8.8 3.6 2.4" class="solid" opacity=".0"/></svg>Ассистент</button>
       <button data-page="social"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 5.8a3 3 0 0 1 0 5.6M17.5 14.2a5 5 0 0 1 3 4.8"/></svg>Соцсети</button>
       <button data-page="weather"><svg viewBox="0 0 24 24"><circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 2.5v1.2M2.5 8.5h1.2M4.3 4.3l.9.9M12.7 4.3l-.9.9"/><path d="M9 20h8a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9 1.4A2.8 2.8 0 0 0 9 20z"/></svg>Погода</button>
@@ -28,6 +27,7 @@
       <hr>
       <button data-page="system"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8" class="dark"/><circle cx="15" cy="12" r="1.8" class="dark"/><circle cx="7" cy="17" r="1.8" class="dark"/></svg>Система</button>
       <button data-page="updates"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/></svg>Обновления</button>
+      <button data-page="whatsnew"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/></svg>Что нового</button>
     </nav>
     <div class="aside-foot">
       <div class="hint">Изменения сохраняются сразу</div>
@@ -130,39 +130,6 @@
       <div id="widgetCards"></div>
     </section>
 
-    <!-- Island -->
-    <section class="page hidden" id="page-island">
-      <h1>Island</h1>
-      <div class="card">
-        <div class="row">
-          <div class="island-head">
-            <img id="islandIcon" alt="">
-            <div class="txt"><div class="name">Island</div><div class="desc" id="islandState">Проверяю…</div></div>
-          </div>
-          <div class="actions tight">
-            <button id="islandLaunch">Запустить</button>
-            <button id="islandSettings">Настройки Island</button>
-          </div>
-        </div>
-        <div class="row">
-          <div class="txt"><div class="name">Капсула Island на панели</div><div class="desc">Значок острова и кнопки его функций прямо в доке</div></div>
-          <label class="switch"><input type="checkbox" data-widget="island"><span></span></label>
-        </div>
-        <div class="row block">
-          <div class="txt"><div class="name">Кнопки в капсуле</div><div class="desc">Нажатие кнопки посылает острову его горячую клавишу. Если Island не запущен, док сначала запустит его</div></div>
-          <div class="chips" id="islandChips"></div>
-        </div>
-      </div>
-      <div class="section-label">Горячие клавиши Island</div>
-      <div class="card" id="hotkeys"></div>
-      <p class="note">Сочетания должны совпадать с Island → Настройки → Клавиши. Нажмите на сочетание, чтобы записать новое; Backspace — вернуть стандартное.</p>
-      <div class="card">
-        <div class="row">
-          <div class="txt"><div class="name">Тексты песен</div><div class="desc">Клик по музыке в доке открывает плеер с синхронным текстом из LRCLIB — той же базы, что использует Island</div></div>
-        </div>
-      </div>
-    </section>
-
     <!-- Ассистент -->
     <section class="page hidden" id="page-assistant">
       <h1>Ассистент</h1>
@@ -206,25 +173,24 @@
       <div class="section-label">Мозг (нейросеть)</div>
       <div class="card">
         <div class="row">
-          <div class="txt"><div class="name">Свободный разговор</div><div class="desc">Отвечает своими словами, сам открывает программы, управляет музыкой, ведёт задачи и напоминания, знает погоду, а с Claude — ещё и ищет в интернете</div></div>
+          <div class="txt"><div class="name">Свободный разговор</div><div class="desc">Отвечает своими словами, сам открывает программы, управляет музыкой, ведёт задачи и напоминания, знает погоду</div></div>
           <label class="switch"><input type="checkbox" id="brEnabled"><span></span></label>
         </div>
         <div class="row block">
-          <div class="txt"><div class="name">Нейросеть</div><div class="desc">Gemini, Groq и OpenRouter бесплатны по ключу с лимитами. Ollama работает прямо на этом ПК — бесплатно и без интернета. Поиск в интернете есть только у Claude</div></div>
+          <div class="txt"><div class="name">Нейросеть</div><div class="desc">Gemini, Groq и OpenRouter бесплатны по ключу с лимитами. Ollama работает прямо на этом ПК — бесплатно и без интернета</div></div>
           <div class="provider-pick" id="brProvider"></div>
         </div>
         <div class="row" id="brKeyRow">
           <div class="txt"><div class="name" id="brKeyName">Ключ API</div><div class="desc" id="brKeyState"></div></div>
           <div class="key-field">
-            <input type="password" id="brKey" placeholder="sk-ant-…" spellcheck="false" autocomplete="off">
+            <input type="password" id="brKey" placeholder="API-ключ…" spellcheck="false" autocomplete="off">
             <button class="ghost" id="brKeySave">Сохранить</button>
             <button class="ghost hidden" id="brKeyDel">Удалить</button>
           </div>
         </div>
         <div class="row">
-          <div class="txt"><div class="name">Модель</div><div class="desc" id="brModelDesc">Opus умнее и лучше держит характер, Sonnet быстрее, Haiku дешевле всех. Оплата — за каждый ответ по тарифам Anthropic</div></div>
-          <div class="segmented" id="brModel"><button data-v="claude-opus-5-5">Opus 5.5</button><button data-v="claude-sonnet-5-5">Sonnet 5.5</button><button data-v="claude-haiku-5-5">Haiku 5.5</button></div>
-          <div class="model-pick hidden" id="brModelPick">
+          <div class="txt"><div class="name">Модель</div><div class="desc" id="brModelDesc">Выберите модель выбранного сервиса</div></div>
+          <div class="model-pick" id="brModelPick">
             <select id="brModelSel"></select>
             <button class="ghost" id="brModelLoad">Обновить список</button>
           </div>
@@ -341,7 +307,12 @@
           <div class="results hidden" id="cityResults"></div>
         </div>
       </div>
-      <p class="note">Данные Open-Meteo, ключ не нужен. Клик по погоде в доке открывает прогноз.</p>
+      <div class="card">
+        <div class="row"><div class="txt"><div class="name">Яндекс Погода</div><div class="desc" id="weatherKeyState" role="status">Проверяем подключение…</div></div><button id="weatherPortal">Получить ключ</button></div>
+        <div class="row block"><label class="name" for="weatherKey">API-ключ</label><div class="actions"><input type="password" id="weatherKey" placeholder="Ключ Яндекс Погоды" autocomplete="off" spellcheck="false"><button id="weatherKeySave">Сохранить</button><button id="weatherKeyDelete" class="hidden">Удалить</button></div></div>
+        <div class="row"><div class="txt"><div class="desc" id="weatherConnection" role="status">Ключ хранится зашифрованным только на этом компьютере.</div></div><button id="weatherTest">Проверить</button></div>
+      </div>
+      <p class="note">Прогноз, температура и ответы ассистента — по данным Яндекс Погоды. После подключения ключа клик по погоде в доке открывает прогноз. Поиск города использует геокодирование Open-Meteo.</p>
     </section>
 
     <!-- Помодоро -->
@@ -407,16 +378,19 @@
           <div class="desc hidden" id="updateNotes"></div>
         </div>
       </div>
-      <p class="note">Новая версия скачивается здесь. При установке Click закроется. Ваши настройки и данные сохранятся.</p>
+      <p class="note">Новые версии скачиваются из GitHub Releases прямо здесь. При установке Click закроется. Ваши настройки и данные сохранятся.</p>
       <div class="card"><div class="row">
         <div class="txt"><div class="name">Сайт Click</div><div class="desc">Скачать приложение и посмотреть, что нового</div></div>
         <button class="ghost" id="updateWebsite">Открыть сайт</button>
       </div></div>
+      <div class="card"><div class="row"><div class="txt"><div class="name">Click на GitHub</div><div class="desc">Исходники, версии и сообщения об ошибках</div></div><button id="updateGithub">Открыть GitHub</button></div></div>
     </section>
+    <section class="page hidden" id="page-whatsnew"><h1>Что нового</h1><p class="note" id="releaseHistoryStatus" role="status">Загружаем историю версий…</p><button id="releaseHistoryRefresh">Обновить список</button><div id="releaseHistory"></div></section>
   </main>
   <script src="shared.js"></script>
   <script src="typesound.js"></script>
   <script src="settings.js"></script>
   <script src="settings-updates.js"></script>
+  <script src="settings-weather.js"></script>
 </body>
 </html>

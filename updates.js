@@ -43,7 +43,34 @@ async function fileHash(filename) {
   return hash.digest('hex');
 }
 
-function createUpdater({ currentVersion, feedUrl, websiteUrl, directory, fetchImpl = fetch, launch, onChange = () => {}, allowLocalHttp = false }) {
+function validateGithubRelease(raw, repository) {
+  if (!/^[\w-]+\/[\w.-]+$/.test(repository) || !raw || raw.draft || raw.prerelease) throw new Error('Неверный релиз GitHub.');
+  const version = String(raw.tag_name || '').replace(/^v/, '');
+  versionParts(version);
+  const filename = `Click-Setup-${version}.exe`;
+  const assets = (raw.assets || []).filter((a) => a.name === filename);
+  if (assets.length !== 1) throw new Error('В релизе нет установщика Click для Windows x64.');
+  const asset = assets[0], sha256 = /^sha256:([a-f0-9]{64})$/i.exec(asset.digest || '')?.[1]?.toLowerCase();
+  const expected = `https://github.com/${repository}/releases/download/${encodeURIComponent(raw.tag_name)}/${filename}`;
+  if (!sha256 || !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > 1024 ** 3 || asset.state !== 'uploaded' || asset.browser_download_url !== expected) throw new Error('Не удалось проверить сведения об установщике GitHub.');
+  return { version, filename, size: asset.size, sha256, notes: String(raw.body || '').slice(0, 8000),
+    files: [{ url: expected, size: asset.size, sha256 }] };
+}
+
+async function readJson(response) {
+  const chunks = []; let length = 0;
+  for await (const bytes of response.body) {
+    length += bytes.length;
+    if (length > 512 * 1024) throw new Error('Сервер вернул слишком большой ответ.');
+    chunks.push(Buffer.from(bytes));
+  }
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+  catch { throw new Error('Сервер обновлений вернул неверный ответ.'); }
+}
+
+function createUpdater({ currentVersion, feedUrl, websiteUrl, repository, directory, fetchImpl = fetch, launch, onChange = () => {}, allowLocalHttp = false }) {
+  if (repository && !/^[\w-]+\/[\w.-]+$/.test(repository)) throw new Error('Неверный репозиторий обновлений.');
+  if (repository) feedUrl = `https://api.github.com/repos/${repository}/releases/latest`;
   let release = null, installer = null, action = null, controller = null;
   let state = { phase: 'idle', currentVersion, availableVersion: null, received: 0, total: 0, progress: 0,
     message: 'Проверьте, доступна ли новая версия Click.', notes: '', checkedAt: null, websiteUrl };
@@ -57,10 +84,11 @@ function createUpdater({ currentVersion, feedUrl, websiteUrl, directory, fetchIm
   };
   const request = async (url) => {
     const response = await fetchImpl(url, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120000)]), cache: 'no-store', headers: { 'User-Agent': `Click/${currentVersion}` } });
-    if (!response.ok) throw new Error(response.status === 404 ? 'Новая версия пока не опубликована.' : `Сервер обновлений недоступен (${response.status}).`);
+    if (!response.ok) throw new Error(response.status === 404 ? 'Новая версия пока не опубликована.' : [403, 429].includes(response.status) ? 'GitHub временно ограничил запросы. Попробуйте позже.' : `Сервер обновлений недоступен (${response.status}).`);
     if (response.url) {
       const resultUrl = new URL(response.url);
       if (resultUrl.protocol !== 'https:' && !(allowLocalHttp && ['localhost', '127.0.0.1', '[::1]'].includes(resultUrl.hostname))) throw new Error('Сервер вернул небезопасный адрес обновления.');
+      if (repository && !['api.github.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'].includes(resultUrl.hostname)) throw new Error('GitHub вернул неизвестный адрес обновления.');
     }
     return response;
   };
@@ -74,15 +102,8 @@ function createUpdater({ currentVersion, feedUrl, websiteUrl, directory, fetchIm
       emit({ phase: 'checking', message: 'Проверяем обновления…' });
       try {
         const response = await request(feedUrl);
-        const chunks = []; let length = 0;
-        for await (const bytes of response.body) {
-          length += bytes.length;
-          if (length > 256 * 1024) throw new Error('Сервер вернул неверные сведения об обновлении.');
-          chunks.push(Buffer.from(bytes));
-        }
-        let raw;
-        try { raw = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('Сервер обновлений пока не готов. Попробуйте позже.'); }
-        const next = validateManifest(raw, feedUrl, allowLocalHttp);
+        const raw = await readJson(response);
+        const next = repository ? validateGithubRelease(raw, repository) : validateManifest(raw, feedUrl, allowLocalHttp);
         const checkedAt = Date.now();
         if (!newer(next.version, currentVersion)) {
           release = null; installer = null;
@@ -150,6 +171,17 @@ function createUpdater({ currentVersion, feedUrl, websiteUrl, directory, fetchIm
       } catch (error) { return fail(error); }
     });
   }
-  return { status, check, download, install, cancel: () => { if (state.phase === 'downloading') controller?.abort(); } };
+  async function history() {
+    if (!repository) return [];
+    const response = await fetchImpl(`https://api.github.com/repos/${repository}/releases?per_page=10`, {
+      signal: AbortSignal.timeout(20000), headers: { 'User-Agent': `Click/${currentVersion}`, Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw new Error('Не удалось загрузить историю версий с GitHub.');
+    const releases = await readJson(response);
+    if (!Array.isArray(releases)) throw new Error('GitHub вернул неверный список релизов.');
+    return releases.filter((r) => !r.draft && !r.prerelease && /^v?\d+\.\d+\.\d+$/.test(r.tag_name)).slice(0, 10)
+      .map((r) => ({ version: r.tag_name.replace(/^v/, ''), date: r.published_at, notes: String(r.body || '').slice(0, 8000) }));
+  }
+  return { status, check, download, install, history, cancel: () => { if (state.phase === 'downloading') controller?.abort(); } };
 }
-module.exports = { createUpdater, validateManifest, newer, fileHash };
+module.exports = { createUpdater, validateManifest, validateGithubRelease, newer, fileHash };

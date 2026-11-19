@@ -1,7 +1,7 @@
 {
   "name": "glassdock",
   "productName": "Click",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Стеклянный док с живыми виджетами для Windows",
   "main": "main.js",
   "scripts": {
@@ -11,7 +11,5 @@
     "@electron/packager": "^20.3.0",
     "electron": "^45.3.1"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^1.8.0"
-  }
+  "dependencies": {}
 }

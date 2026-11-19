@@ -1,19 +1,5 @@
 // Общие данные для дока, всплывающих панелей и настроек
 
-// Действия Island: открываются его горячими клавишами
-const ISLAND_ACTIONS = {
-  island: { label: 'Остров', icon: '<rect x="3" y="8" width="18" height="8" rx="4" class="solid"/>' },
-  command: { label: 'Команда', icon: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>' },
-  chat: { label: 'Чат с ИИ', icon: '<path d="M4 5.5h16v10H9l-4.5 4v-4H4z"/>' },
-  voice: { label: 'Голос в текст', icon: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>' },
-  record: { label: 'Запись экрана', icon: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5" class="solid"/>' },
-  screenshot: { label: 'Скриншот области', icon: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /><rect x="8" y="8" width="8" height="8" rx="1.5" stroke-dasharray="2 2"/>' },
-  fullshot: { label: 'Весь экран', icon: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/>' },
-  ocr: { label: 'Текст с экрана', icon: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8.5 9h7M12 9v7"/>' },
-  clipboard: { label: 'История буфера', icon: '<rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h5"/>' },
-  mic: { label: 'Микрофон вкл/выкл', icon: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M4 4l16 16"/>' },
-};
-
 // Иконки погоды (цветные, для тёмного фона)
 const WEATHER_ICONS = {
   sun: '<circle cx="12" cy="12" r="4.5" fill="#ffd60a"/><g stroke="#ffd60a" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g>',
@@ -55,9 +41,6 @@ const WIDGET_OPTIONS = {
   openApps: [
     { key: 'size', label: 'Размер иконок', type: 'seg', choices: [['small', 'Мелкие'], ['normal', 'Обычные'], ['large', 'Крупные']] },
   ],
-  island: [
-    { key: 'logo', label: 'Значок Island в начале капсулы', type: 'toggle' },
-  ],
   media: [
     { key: 'size', label: 'Ширина', type: 'seg', choices: [['compact', 'Узкая'], ['normal', 'Обычная'], ['wide', 'Широкая']] },
     { key: 'play', label: 'Кнопка «играть»', type: 'seg', choices: [['gray', 'Серая'], ['blue', 'Синяя'], ['white', 'Белая'], ['clear', 'Без фона']] },
@@ -97,7 +80,6 @@ const WIDGET_DEFAULTS = {
   start: { style: 'glass', menu: 'glass', view: 'home', winKey: true },
   system: { style: 'glass', show: 'both', view: 'bars', color: 'load', icon: true },
   openApps: { style: 'glass', size: 'normal' },
-  island: { style: 'glass', logo: true },
   media: { style: 'glass', size: 'normal', play: 'gray', text: true, cover: true, controls: true },
   social: { style: 'glass', view: 'one', delta: true },
   tasks: { style: 'glass', show: 'next', tile: true },
@@ -146,9 +128,9 @@ function compactCount(n) {
 
 const BLOCK_LABELS = {
   start: 'Пуск', pinned: 'Закреплённые приложения', social: 'Соцсети', system: 'Система', apps: 'Приложения в капсулах', openApps: 'Открытые приложения',
-  island: 'Island', media: 'Музыка', tasks: 'Задачи', disk: 'Диски', pomodoro: 'Помодоро', tray: 'Скрытые значки', clock: 'Часы и погода',
+  media: 'Музыка', tasks: 'Задачи', disk: 'Диски', pomodoro: 'Помодоро', tray: 'Скрытые значки', clock: 'Часы и погода',
 };
-const DEFAULT_ORDER = ['start', 'pinned', 'system', 'apps', 'openApps', 'island', 'media', 'social', 'tasks', 'disk', 'pomodoro', 'tray', 'clock'];
+const DEFAULT_ORDER = ['start', 'pinned', 'system', 'apps', 'openApps', 'media', 'social', 'tasks', 'disk', 'pomodoro', 'tray', 'clock'];
 
 // Расположение значков на панели во всю ширину: в какую зону (L — слева, C — центр, R — справа) попадает блок
 const LAYOUTS = [['center', 'По центру'], ['edges', 'По краям'], ['left', 'Слева'], ['right', 'Справа'], ['spread', 'Равномерно'], ['custom', 'Свой']];
@@ -205,4 +187,4 @@ const ASSISTANTS = {
 };
 const assistantOf = (cfg) => ASSISTANTS[cfg && cfg.assistant && cfg.assistant.persona] || ASSISTANTS.patrick;
 
-if (typeof module !== 'undefined') module.exports = { WIDGET_DEFAULTS, ISLAND_ACTIONS, DEFAULT_ORDER, SOCIAL, ASSISTANTS, assistantOf, weatherText };
+if (typeof module !== 'undefined') module.exports = { WIDGET_DEFAULTS, DEFAULT_ORDER, SOCIAL, ASSISTANTS, assistantOf, weatherText };

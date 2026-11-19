@@ -1,5 +1,5 @@
 // «Мозг» ассистента: разговор с нейросетью и инструменты дока.
-// Провайдеры: Claude (официальный SDK Anthropic) и бесплатные — Google Gemini, Groq, OpenRouter,
+// Провайдеры: Google Gemini, Groq, OpenRouter,
 // Ollama на этом ПК. Бесплатные понимают формат запросов OpenAI (/chat/completions), поэтому
 // для них один общий цикл (askCompat).
 // Главный процесс создаёт мозг один раз (createBrain) и передаёт функции дока — открыть программу,
@@ -8,15 +8,12 @@
 const fs = require('fs');
 const path = require('path');
 const { safeStorage } = require('electron');
-const AnthropicSDK = require('@anthropic-ai/sdk');
-const Anthropic = AnthropicSDK.default || AnthropicSDK;
 
 const { dataPath } = require('./paths');
-const keyPath = (provider) => dataPath(provider === 'anthropic' ? 'brain.key' : `brain-${provider}.key`);
+const keyPath = (provider) => dataPath(`brain-${provider}.key`);
 
 // Модель по умолчанию у бесплатных — подсказка; точный список берём у самого сервиса (кнопка «Обновить список»)
 const PROVIDERS = {
-  anthropic: { name: 'Claude', free: false, key: true, search: true, keyHelp: 'platform.claude.com → API keys', keyRe: /^sk-ant-/ },
   gemini: {
     name: 'Gemini', free: true, key: true, base: 'https://generativelanguage.googleapis.com/v1beta/openai',
     keyHelp: 'aistudio.google.com → Get API key (бесплатно)', keyRe: /^AIza/, defaultModel: 'gemini-2.5-flash',
@@ -34,10 +31,6 @@ const PROVIDERS = {
     keyHelp: '', defaultModel: '',
   },
 };
-const MODELS = { 'claude-opus-5-5': 'Claude Opus 5.5', 'claude-sonnet-5-5': 'Claude Sonnet 5.5', 'claude-haiku-5-5': 'Claude Haiku 5.5' };
-const DEFAULT_MODEL = 'claude-opus-5-5';
-// Серверный запасной вариант при отказе модели есть у Opus и Sonnet; у Haiku его нет
-const HAS_FALLBACKS = new Set(['claude-opus-5-5', 'claude-sonnet-5-5']);
 const MAX_HISTORY = 60;     // сообщений в памяти; дальше начинаем разговор заново
 const MAX_STEPS = 8;        // запросов к API на один вопрос (с учётом вызовов инструментов)
 const EMOTIONS = ['idle', 'joy', 'sad', 'angry', 'shock', 'shy', 'sleep', 'worry', 'smug', 'overload', 'think', 'idea', 'tip'];
@@ -179,16 +172,14 @@ const TOOLS = [
     input_schema: obj({}),
   },
 ];
-const WEB_SEARCH = { type: 'web_search_20260209', name: 'web_search', max_uses: 3 };
 
 // ---------- Мозг ----------
 
 function createBrain(dock) {
-  let client = null, clientKey = null;
   const histories = {};   // персонаж+модель → сообщения
 
   const brainCfg = () => dock.config().assistant.brain || {};
-  const provider = () => (PROVIDERS[brainCfg().provider] ? brainCfg().provider : 'anthropic');
+  const provider = () => (PROVIDERS[brainCfg().provider] ? brainCfg().provider : 'gemini');
 
   function readKey(p = provider()) {
     try {
@@ -201,16 +192,7 @@ function createBrain(dock) {
     key = (key || '').trim();
     if (!key) { try { fs.unlinkSync(keyPath(p)); } catch {} }
     else fs.writeFileSync(keyPath(p), safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(key) : Buffer.from(key, 'utf8'));
-    if (p === 'anthropic') client = null;
     return status();
-  }
-  // Без своего ключа SDK сам ищет ANTHROPIC_API_KEY или вход через `ant auth login`
-  function getClient() {
-    const key = readKey('anthropic');
-    if (client && clientKey === key) return client;
-    clientKey = key;
-    client = key ? new Anthropic({ apiKey: key, maxRetries: 2, timeout: 90_000 }) : new Anthropic({ maxRetries: 2, timeout: 90_000 });
-    return client;
   }
   // Ключи наружу не отдаём — только «есть/нет» и маску
   function status() {
@@ -224,19 +206,16 @@ function createBrain(dock) {
       provider: p,
       hasKey: keys[p].hasKey,
       keyHint: keys[p].keyHint,
-      envKey: p === 'anthropic' && !keys.anthropic.hasKey && !!process.env.ANTHROPIC_API_KEY,
       // Ollama ключ не нужен — готовность проверяет ask (ошибка «ollama», если не запущена)
-      ready: !PROVIDERS[p].key || keys[p].hasKey || (p === 'anthropic' && !!process.env.ANTHROPIC_API_KEY),
+      ready: !PROVIDERS[p].key || keys[p].hasKey,
       keys,
       providers: Object.fromEntries(Object.entries(PROVIDERS).map(([id, x]) => [id, { name: x.name, free: x.free, key: x.key, local: !!x.local, search: !!x.search, keyHelp: x.keyHelp, keyRe: x.keyRe ? x.keyRe.source : '', defaultModel: x.defaultModel || '' }])),
-      models: MODELS,
     };
   }
 
-  // Модель Claude — из трёх; у остальных — то, что выбрано в настройках, иначе подсказка по умолчанию
+  // Выбранная модель сервиса или его значение по умолчанию
   const model = () => {
     const p = provider(), b = brainCfg();
-    if (p === 'anthropic') return MODELS[b.model] ? b.model : DEFAULT_MODEL;
     return (b.models && b.models[p]) || PROVIDERS[p].defaultModel || '';
   };
   const histKey = (persona) => persona + '|' + provider() + '|' + model();
@@ -310,16 +289,6 @@ function createBrain(dock) {
     }
   }
 
-  // После отказа модели и перехода на запасную (блок fallback) старые размышления и вызовы до границы
-  // обратно не отправляем — так требует API
-  function echoable(content) {
-    const last = content.map((b) => b.type).lastIndexOf('fallback');
-    if (last < 0) return content;
-    const results = new Set(content.filter((b) => /_tool_result$/.test(b.type) && b.tool_use_id).map((b) => b.tool_use_id));
-    return content.filter((b, i) => i >= last || b.type === 'text' ||
-      (b.type === 'server_tool_use' && results.has(b.id)) || (/_tool_result$/.test(b.type)));
-  }
-
   let busy = Promise.resolve();
   // Один вопрос → ответ { text, emotion } или { error }
   function ask(persona, text) {
@@ -347,53 +316,7 @@ function createBrain(dock) {
     const mark = hist.length;   // при ошибке откатываем разговор к этой точке
     hist.push({ role: 'user', content: `<сейчас>\n${snapshot()}\n</сейчас>\n\n${text}` });
     const p = provider();
-    if (p !== 'anthropic') return askCompat(p, persona, hist, mark);
-
-    const m = model();
-    const params = {
-      model: m,
-      max_tokens: 16000,
-      system: [{ type: 'text', text: systemPrompt(persona, true), cache_control: { type: 'ephemeral' } }],
-      // Поиск с фильтрацией (20260209) есть у Opus и Sonnet; Haiku — обычный поиск
-      tools: [...TOOLS, m === 'claude-haiku-5-5' ? { ...WEB_SEARCH, type: 'web_search_20250305' } : WEB_SEARCH],
-      // Болтовня и команды: низкое усилие — отвечает быстро; подумать глубже модель решает сама
-      output_config: { effort: 'low' },
-      ...(HAS_FALLBACKS.has(m) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
-    };
-
-    try {
-      let res;
-      for (let step = 0; step < MAX_STEPS; step++) {
-        res = await getClient().beta.messages.create({ ...params, messages: hist });
-        const content = echoable(res.content);
-        hist.push({ role: 'assistant', content });
-        if (res.stop_reason === 'pause_turn') continue;   // долгий поиск — продолжаем тот же ход
-        if (res.stop_reason !== 'tool_use') break;
-        const calls = content.filter((b) => b.type === 'tool_use');
-        const results = [];
-        for (const c of calls) {
-          let out, isError = false;
-          try { out = await runTool(c.name, c.input || {}); } catch (e) { out = 'Ошибка: ' + e.message; isError = true; }
-          results.push({ type: 'tool_result', tool_use_id: c.id, content: String(out), ...(isError ? { is_error: true } : {}) });
-        }
-        hist.push({ role: 'user', content: results });
-      }
-      if (res.stop_reason === 'refusal') { hist.length = mark; return { text: '', emotion: 'worry', refusal: true }; }
-      if (res.stop_reason === 'tool_use' || res.stop_reason === 'pause_turn') {
-        hist.length = mark;
-        return { error: 'steps' };
-      }
-      return finish(res.content.filter((b) => b.type === 'text').map((b) => b.text).join(''));
-    } catch (e) {
-      hist.length = mark;
-      if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return { error: 'auth' };
-      if (e instanceof Anthropic.RateLimitError) return { error: 'rate' };
-      if (e instanceof Anthropic.BadRequestError && /credit|balance|billing/i.test(e.message)) return { error: 'billing' };
-      if (e instanceof Anthropic.APIConnectionError) return { error: 'offline' };
-      if (e instanceof Anthropic.APIError) return { error: 'api', detail: `${e.status}: ${e.message}` };
-      if (/api key|apiKey|authentication/i.test(e.message)) return { error: 'auth' };
-      return { error: 'api', detail: e.message };
-    }
+    return askCompat(p, persona, hist, mark);
   }
 
   // ---------- Бесплатные: формат OpenAI /chat/completions ----------
@@ -412,7 +335,7 @@ function createBrain(dock) {
     const headers = { 'Content-Type': 'application/json' };
     if (key) headers.Authorization = 'Bearer ' + key;
     // OpenRouter просит назвать приложение; без данных о пользователе
-    if (p === 'openrouter') { headers['HTTP-Referer'] = 'https://github.com/glassdock'; headers['X-Title'] = 'Click'; }
+    if (p === 'openrouter') { headers['HTTP-Referer'] = 'https://github.com/mentalmollie/click-desktop'; headers['X-Title'] = 'Click'; }
     const r = await fetch(PROVIDERS[p].base + url, {
       method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(p === 'ollama' ? 180_000 : 90_000),
@@ -590,7 +513,6 @@ function createBrain(dock) {
 
   // Список моделей у сервиса — для настроек. У OpenRouter только бесплатные, у Groq — без распознавания речи
   async function listModels(p) {
-    if (p === 'anthropic') return { ok: true, list: Object.entries(MODELS).map(([id, name]) => ({ id, name })) };
     if (!PROVIDERS[p]) return { ok: false, error: 'api', detail: 'нет такого сервиса' };
     if (PROVIDERS[p].key && !readKey(p)) return { ok: false, error: 'nokey' };
     try {
@@ -611,4 +533,4 @@ function createBrain(dock) {
   return { ask, reset, status, setKey, listModels, key: (p) => (PROVIDERS[p] && PROVIDERS[p].key ? readKey(p) : '') };
 }
 
-module.exports = { createBrain, MODELS, DEFAULT_MODEL, PROVIDERS };
+module.exports = { createBrain, PROVIDERS };

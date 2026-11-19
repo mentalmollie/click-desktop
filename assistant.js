@@ -987,7 +987,7 @@ $('#ask').addEventListener('submit', async (e) => {
   else run(q);
 });
 
-// ---------- «Мозг» (Claude) ----------
+// ---------- «Мозг» ----------
 // Свободные вопросы — модели; без ключа или без интернета работают прежние команды (run).
 
 let brainState = null;
@@ -1059,8 +1059,11 @@ const hhmm = (d) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-
 async function weatherLine() {
   try {
     const w = cfg.weather;
-    const d = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${w.lat}&longitude=${w.lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`)).json();
-    return `${w.city}: ${Math.round(d.current.temperature_2m)}°, ${weatherText(d.current.weather_code).toLowerCase()}, днём до ${Math.round(d.daily.temperature_2m_max[0])}°`;
+    const result = await dock.weather();
+    if (!result.ok) return result.message;
+    const d = result.data;
+    const high = d.daily.temperature_2m_max[0];
+    return `${w.city}: ${Math.round(d.current.temperature_2m)}°, ${weatherText(d.current.weather_code).toLowerCase()}${high == null ? '' : `, днём до ${Math.round(high)}°`}. Данные Яндекс Погоды`;
   } catch { return null; }
 }
 

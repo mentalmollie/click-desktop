@@ -1,5 +1,5 @@
 const {
-  app, BrowserWindow, ipcMain, screen, Tray, Menu, shell, nativeImage, nativeTheme, Notification, dialog, powerMonitor, session,
+  app, BrowserWindow, ipcMain, screen, Tray, Menu, shell, nativeImage, nativeTheme, Notification, dialog, powerMonitor, session, safeStorage,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -13,18 +13,19 @@ const { createVoice } = require('./voice.js');
 const { createSpotify } = require('./spotify.js');
 const { createUpdater } = require('./updates.js');
 const updateChannel = require('./update-channel.json');
+const { createWeather } = require('./weather.js');
+const bundledNotes = require('./release-notes.json');
 
 const CONFIG_PATH = dataPath('config.json');
 const TODOS_PATH = dataPath('todos.json');
 const PANEL_SIZE = { calendar: [300, 340], todos: [330, 410], media: [360, 300], weather: [340, 500], system: [360, 500], disks: [360, 300], start: [620, 660], social: [340, 240], tray: [340, 420],
 };
 const TASKBAR_PAUSE = path.join(process.env.TEMP || os.tmpdir(), 'glassdock-taskbar.pause');
-const ISLAND_SETTINGS_TITLE = 'Island — настройки';
 
 const DEFAULTS = {
   weather: { city: 'Москва', lat: 55.75, lon: 37.62 },
   widgets: {
-    start: true, social: true, system: true, openApps: true, island: true, media: true, tasks: true, pomodoro: true, disk: true, tray: true, clock: true,
+    start: true, social: true, system: true, openApps: true, media: true, tasks: true, pomodoro: true, disk: true, tray: true, clock: true,
   },
   widgetOpts: WIDGET_DEFAULTS,
   trayPinned: [],
@@ -37,7 +38,7 @@ const DEFAULTS = {
   },
   // Ассистент: pos — место на панели (0 — левый край, 1 — правый), talk — разговорчивость
   // mode: 'sit' — сидит на панели, 'walk' — гуляет по нижнему краю экрана
-  assistant: { enabled: true, persona: 'patrick', brain: { enabled: true, provider: 'anthropic', model: 'claude-opus-5-5', models: {} },
+  assistant: { enabled: true, persona: 'patrick', brain: { enabled: true, provider: 'gemini', models: {} },
     voice: { enabled: false, engine: 'groq', model: 'small', sensitivity: 0.5, device: '' },
     // Звук печати ответа в облачке: typewriter | blip | off (typesound.js)
     typeSound: 'typewriter', typeVolume: 0.4, mode: 'sit', pos: 0.88, size: 'm', talk: 'normal', speak: false, muteUntil: 0, reminders: [] },
@@ -45,23 +46,6 @@ const DEFAULTS = {
   layoutZones: {},
   panelSizes: {},
   system: { hideTaskbar: true, reserveSpace: true },
-  // Горячие клавиши по умолчанию — как в настройках Island
-  island: {
-    path: path.join(process.env.LOCALAPPDATA || '', 'Island\\island.exe'),
-    actions: ['island', 'chat', 'screenshot', 'voice', 'clipboard'],
-    hotkeys: {
-      island: 'Ctrl+Alt+I',
-      command: 'Alt+Space',
-      chat: 'Ctrl+Alt+A',
-      voice: 'Ctrl+Alt+D',
-      record: 'Ctrl+Alt+R',
-      screenshot: 'Ctrl+Alt+S',
-      fullshot: 'Ctrl+Alt+Shift+S',
-      ocr: 'Ctrl+Alt+O',
-      clipboard: 'Ctrl+Alt+V',
-      mic: 'Ctrl+Alt+M',
-    },
-  },
 };
 
 let win = null;
@@ -142,13 +126,9 @@ function loadConfig() {
     startPinned: file.startPinned,  // старый формат; переносится в startLayout
     startLayout: file.startLayout,  // undefined — заполним при первой загрузке списка приложений
     startLocked: !!file.startLocked,
-    island: {
-      ...DEFAULTS.island,
-      ...file.island,
-      hotkeys: { ...DEFAULTS.island.hotkeys, ...(file.island && file.island.hotkeys) },
-    },
     apps: file.apps || detectApps(),
   };
+  removeLegacyIntegrations(cfg);
   // Первые три приложения — без капсулы, как в левой группе референса
   cfg.apps.forEach((a, i) => { if (a.capsule === undefined) a.capsule = i >= 3; });
   // Старые настройки: затемнение tint превращаем в прозрачность фона, прозрачность всего окна больше не используется
@@ -176,13 +156,29 @@ function loadConfig() {
   cfg.widgetOrder = [...order, ...DEFAULT_ORDER.filter((k) => !order.includes(k))];
   cfg.layoutZones = file.layoutZones || {};
   cfg.panelSizes = file.panelSizes || {};
+  removeLegacyIntegrations(cfg);
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
   return cfg;
 }
 
+function removeLegacyIntegrations(cfg) {
+  delete cfg.island;
+  delete cfg.widgets.island;
+  delete cfg.widgetOpts.island;
+  if (cfg.layoutZones) delete cfg.layoutZones.island;
+  if (cfg.widgetOrder) cfg.widgetOrder = cfg.widgetOrder.filter((id) => id !== 'island');
+  const b = cfg.assistant.brain;
+  if (!['gemini', 'groq', 'openrouter', 'ollama'].includes(b.provider)) b.provider = 'gemini';
+  delete b.model;
+  if (b.models) delete b.models.anthropic;
+}
+
+const weather = createWeather({ keyPath: dataPath('weather-yandex.key'), safeStorage, config: () => config.weather });
+
 let socialKey = '';
 const socialKeyOf = (cfg) => JSON.stringify([cfg.social.accounts, cfg.social.ytKey, cfg.social.vkToken]);
 function saveConfig(cfg) {
+  removeLegacyIntegrations(cfg);
   config = cfg;
   // Добавили или изменили аккаунт соцсети — сразу узнаём число подписчиков
   const sk = socialKeyOf(cfg);
@@ -1473,7 +1469,7 @@ ipcMain.handle('spotify:player', () => spotify.player());
 // Библиотеку (плейлисты пользователя) подгружаем заранее — чтобы «мозг» сразу знал названия
 setTimeout(() => spotify.library().catch(() => {}), 8000);
 
-// ---------- «Мозг» ассистента (Claude API) ----------
+// ---------- «Мозг» ассистента ----------
 
 const brain = createBrain({
   config: () => config,
@@ -1507,12 +1503,11 @@ const brain = createBrain({
     return config.assistant.reminders.length < n;
   },
   weather: async () => {
-    const w = config.weather;
     try {
-      const d = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${w.lat}&longitude=${w.lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max&timezone=auto&forecast_days=3`)).json();
-      const days = d.daily.time.map((t, i) => `${t}: ${Math.round(d.daily.temperature_2m_min[i])}…${Math.round(d.daily.temperature_2m_max[i])}°, ${weatherText(d.daily.weather_code[i])}, осадки ${d.daily.precipitation_probability_max[i]}%`);
-      return `${w.city} сейчас: ${Math.round(d.current.temperature_2m)}° (ощущается ${Math.round(d.current.apparent_temperature)}°), ${weatherText(d.current.weather_code)}, ветер ${Math.round(d.current.wind_speed_10m)} км/ч.\n` + days.join('\n');
-    } catch { return null; }
+      const d = await weather.get(), c = d.current;
+      const days = d.daily.time.slice(0, 3).map((t, i) => `${t}: ${Math.round(d.daily.temperature_2m_min[i])}…${Math.round(d.daily.temperature_2m_max[i])}°, ${weatherText(d.daily.weather_code[i])}`);
+      return `${config.weather.city} сейчас: ${Math.round(c.temperature_2m)}°, ${weatherText(c.weather_code)}. Данные Яндекс Погоды.\n` + days.join('\n');
+    } catch (e) { return e.message; }
   },
 });
 const brainOn = () => config.assistant.brain.enabled;
@@ -1678,7 +1673,7 @@ async function appIcon(p) {
     if (/\.(ico|png)$/i.test(p)) url = nativeImage.createFromPath(p).resize({ width: 64, height: 64 }).toDataURL();
     else url = (await app.getFileIcon(p, { size: 'large' })).toDataURL();
   } catch {}
-  // У некоторых программ (например, Island) getFileIcon отдаёт стандартную заглушку — достаём иконку через .NET
+  // У некоторых программ (например, некоторые Electron-приложения) getFileIcon отдаёт стандартную заглушку — достаём иконку через .NET
   if ((!url || url.length < 1000) && /\.exe$/i.test(p)) url = (await extractIcon(p)) || url;
   iconCache.set(p, url);
   return url;
@@ -1828,12 +1823,10 @@ function ownPids() {
 // Окна, сгруппированные по программе, в порядке появления (как на панели задач)
 function windowGroups() {
   const own = ownPids();
-  const islandExe = config.island.path.toLowerCase();
   const groups = new Map();
   for (const w of winState.list) {
     if (own.has(w.p) || !w.e) continue;
     const key = w.e.toLowerCase();
-    if (key === islandExe) continue;
     if (!groups.has(key)) groups.set(key, { exe: w.e, wins: [] });
     groups.get(key).wins.push(w);
   }
@@ -1881,33 +1874,6 @@ function focusGroup(g) {
   if (cur && wins.length === 1) return sendCmd('minimize ' + cur.h);
   const next = cur ? wins[(wins.indexOf(cur) + 1) % wins.length] : wins[0];
   sendCmd('activate ' + next.h);
-}
-
-// ---------- Island ----------
-
-// fresh — по нажатию (нужен точный ответ, запускать ли Island); для значка на панели хватает кэша
-function islandRunning(fresh) {
-  return (fresh ? runningProcesses() : runningNow()).then((names) => names.has(path.basename(config.island.path).toLowerCase()));
-}
-
-function launchIsland() {
-  if (fs.existsSync(config.island.path)) spawn(config.island.path, [], { detached: true, stdio: 'ignore' }).unref();
-}
-
-async function islandAction(id) {
-  const combo = config.island.hotkeys[id];
-  if (!combo) return;
-  if (!(await islandRunning(true))) {
-    launchIsland();
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-  sendCmd('combo ' + comboToVks(combo).join(','));
-}
-
-async function openIslandSettings() {
-  if (!(await islandRunning(true))) return launchIsland();
-  const r = await askCmd('showtitle ' + ISLAND_SETTINGS_TITLE);
-  if (r !== 'ok') launchIsland();
 }
 
 // ---------- Панель задач Windows ----------
@@ -2047,14 +2013,6 @@ ipcMain.on('window:focus', (_e, key) => {
   if (g) focusGroup(g);
 });
 ipcMain.on('window:new', (_e, key) => shell.openPath(key));
-ipcMain.handle('island:status', async () => ({
-  installed: fs.existsSync(config.island.path),
-  running: await islandRunning(),
-  icon: fs.existsSync(config.island.path) ? await appIcon(config.island.path) : null,
-}));
-ipcMain.on('island:action', (_e, id) => islandAction(id));
-ipcMain.on('island:settings', openIslandSettings);
-ipcMain.on('island:launch', launchIsland);
 ipcMain.on('open', (_e, what) => {
   hidePanel();
   if (what === 'taskmgr') shell.openPath('C:\\Windows\\System32\\Taskmgr.exe');
@@ -2071,6 +2029,25 @@ for (const method of ['check', 'download', 'install']) ipcMain.handle('updates:'
 });
 ipcMain.on('updates:cancel', (e) => { if (alive(settingsWin) && e.sender === settingsWin.webContents) updates.cancel(); });
 ipcMain.on('updates:website', () => shell.openExternal(updateChannel.websiteUrl));
+ipcMain.on('updates:github', () => shell.openExternal(updateChannel.githubUrl));
+ipcMain.handle('updates:history', async () => {
+  const local = { version: app.getVersion(), notes: bundledNotes.notes, date: null };
+  try {
+    const remote = await updates.history();
+    return { releases: remote.some((r) => r.version === local.version) ? remote : [local, ...remote], offline: false };
+  } catch { return { releases: [local], offline: true }; }
+});
+ipcMain.handle('weather:get', async () => { try { return { ok: true, data: await weather.get() }; } catch (e) { return { ok: false, message: e.message }; } });
+ipcMain.handle('weather:status', () => weather.status());
+ipcMain.handle('weather:key', (e, key) => {
+  if (!alive(settingsWin) || e.sender !== settingsWin.webContents) throw new Error('Откройте настройки погоды.');
+  const status = weather.setKey(key);
+  config.weather.connectionRevision = (config.weather.connectionRevision || 0) + 1;
+  saveConfig(config);
+  return status;
+});
+ipcMain.on('weather:portal', () => shell.openExternal('https://yandex.ru/pogoda/b2b/console'));
+ipcMain.on('weather:website', () => shell.openExternal(`https://yandex.ru/pogoda/?lat=${Number(config.weather.lat)}&lon=${Number(config.weather.lon)}`));
 ipcMain.handle('sysinfo', async () => ({
   model: os.cpus()[0].model.trim(),
   cores: coreUsage(),

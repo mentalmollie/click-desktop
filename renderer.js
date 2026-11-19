@@ -136,11 +136,9 @@ function applyConfig(cfg) {
   if (pomoKey !== lastPomoKey && !pomo.running) resetPomo(pomo.mode);
   lastPomoKey = pomoKey;
   appsKey = '';
-  islandKey = '';
   trayKey = '';
   disksKey = '';
   refreshApps();
-  refreshIsland();
   refreshTray();
   refreshStats();
   refreshWeather();
@@ -316,7 +314,7 @@ function makeDraggable(btn, info) {
 // и переставить; порядок сохраняется в config.widgetOrder.
 
 const BLOCKS = {
-  start: '#startBlock', pinned: '#leftapps', social: '#w-social', system: '#w-system', apps: '#capapps', openApps: '#w-open', island: '#w-island', media: '#w-media',
+  start: '#startBlock', pinned: '#leftapps', social: '#w-social', system: '#w-system', apps: '#capapps', openApps: '#w-open', media: '#w-media',
   tasks: '#w-tasks', disk: '#w-disk', pomodoro: '#w-pomodoro', tray: '#w-tray', clock: '#w-clock',
 };
 let wdrag = null;
@@ -475,42 +473,6 @@ function showWindows(data) {
   });
 }
 dock.onWindows(showWindows);
-
-// ---------- Island ----------
-
-let islandKey = '';
-async function refreshIsland() {
-  const box = $('#w-island');
-  const st = await dock.islandStatus();
-  const show = config && config.widgets.island && st.installed;
-  box.classList.toggle('hidden', !show);
-  if (!show) return;
-  box.classList.toggle('off', !st.running);
-  const logo = opt('island').logo;
-  const key = config.island.actions.join(',') + st.running + logo;
-  if (key === islandKey) return;
-  islandKey = key;
-  box.innerHTML = '';
-
-  if (logo) {
-    const b = iconButton(st.icon, st.running ? 'Island · клик — настройки острова' : 'Island не запущен · клик — запустить', 'I');
-    b.classList.add('logo');
-    b.addEventListener('click', () => (st.running ? dock.islandSettings() : dock.islandLaunch()));
-    box.appendChild(b);
-    if (config.island.actions.length) box.appendChild(Object.assign(document.createElement('span'), { className: 'sep' }));
-  }
-
-  for (const id of config.island.actions) {
-    const act = ISLAND_ACTIONS[id];
-    if (!act) continue;
-    const b = document.createElement('button');
-    b.className = 'btn';
-    b.title = `${act.label} · ${config.island.hotkeys[id]}`;
-    b.innerHTML = `<svg viewBox="0 0 24 24">${act.icon}</svg>`;
-    b.addEventListener('click', () => dock.islandAction(id));
-    box.appendChild(b);
-  }
-}
 
 // ---------- Скрытые значки ----------
 
@@ -730,25 +692,27 @@ async function refreshStats() {
   if (s.disk && s.disk.length) renderDisks(s.disk);
 }
 
-// ---------- Погода (Open-Meteo, без ключа; иконки в shared.js) ----------
+// ---------- Погода (Яндекс Погода; иконки в shared.js) ----------
 
 let weatherKey = '';
 async function refreshWeather(force) {
   const w = config && config.weather;
   if (!w) return;
-  const key = w.lat + ',' + w.lon;
+  const key = [w.lat, w.lon, w.connectionRevision || 0].join(',');
   if (!force && key === weatherKey) return;
   weatherKey = key;
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${w.lat}&longitude=${w.lon}` +
-      '&current=temperature_2m,weather_code,is_day&timezone=auto';
-    const d = await (await fetch(url)).json();
+    const result = await dock.weather();
+    if (!result.ok) throw new Error(result.message);
+    const d = result.data;
     const c = d.current;
     $('#wicon').innerHTML = weatherIcon(c.weather_code, c.is_day);
     $('#wtemp').textContent = `${Math.round(c.temperature_2m)}°`;
-    $('#weather').title = w.city;
-  } catch {
+    $('#weather').title = w.city + ' · Яндекс Погода';
+  } catch (e) {
     weatherKey = '';
+    $('#wicon').innerHTML = '';
+    $('#weather').title = e.message;
     $('#wtemp').textContent = '—';
   }
 }
@@ -883,7 +847,6 @@ dock.config().then((cfg) => {
 });
 renderPomo();
 setInterval(refreshApps, 4000);
-setInterval(refreshIsland, 5000);
 setInterval(refreshTray, 20000);
 setInterval(refreshStats, 2000);
 setInterval(() => refreshWeather(true), 15 * 60 * 1000);

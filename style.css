@@ -330,7 +330,7 @@ html.edge-pad, html.edge-pad body { background: rgba(0, 0, 0, 0.01); height: 100
   border-radius: 2px; background: var(--blue); box-shadow: 0 0 8px var(--blue); pointer-events: none;
 }
 
-/* ---------- Группы иконок в одной капсуле (открытые приложения, Island) ---------- */
+/* ---------- Группы иконок в одной капсуле (открытые приложения) ---------- */
 
 .group { padding: 0 4px; gap: 1px; }
 .group .btn { width: 39px; height: 39px; border-radius: 13px; }
@@ -347,8 +347,6 @@ html.edge-pad, html.edge-pad body { background: rgba(0, 0, 0, 0.01); height: 100
 .btn.running.active-pin::after, .group .btn.active::after { width: 12px; margin-left: -6px; border-radius: 2px; height: 3px; }
 .group .btn svg { width: 19px; height: 19px; fill: none; stroke: var(--white); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .group .btn svg .solid { fill: var(--white); stroke: none; }
-.island .btn.logo img { width: 24px; height: 24px; border-radius: 6px; }
-.island.off .btn:not(.logo) { opacity: .45; }
 .group .sep { width: 1px; height: 24px; background: var(--line); margin: 0 3px; }
 
 /* ---------- Часы и погода ---------- */

@@ -12,7 +12,6 @@ document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('clic
   document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('hidden', p.id !== 'page-' + b.dataset.page));
   $('main').scrollTop = 0;
-  if (b.dataset.page === 'island') refreshIslandState();
   refreshPreview();
 }));
 
@@ -245,7 +244,7 @@ $('#detectApps').addEventListener('click', async () => {
   setTimeout(() => { $('#detectApps').textContent = 'Найти установленные'; }, 2500);
 });
 
-// Переключатели виджетов, которые стоят на других страницах (открытые приложения, Island)
+// Переключатели виджетов, которые стоят на других страницах (открытые приложения)
 document.querySelectorAll('input[data-widget]').forEach((input) => input.addEventListener('change', () => {
   cfg.widgets[input.dataset.widget] = input.checked;
   save();
@@ -258,7 +257,6 @@ const WIDGETS = [
   ['start', 'Пуск', '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>', 'Клик — меню с поиском, закреплёнными и всеми приложениями'],
   ['system', 'Система', '<rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M9 2.5v3M15 2.5v3M9 18.5v3M15 18.5v3M2.5 9h3M2.5 15h3M18.5 9h3M18.5 15h3"/>', 'Клик — окно с процессором, ядрами, памятью и процессами'],
   ['openApps', 'Открытые приложения', '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 9h18"/>', 'Клик — переключиться на окно, по активному — свернуть'],
-  ['island', 'Island', '<rect x="3" y="8" width="18" height="8" rx="4" class="solid"/>', 'Кнопки функций острова'],
   ['media', 'Музыка', '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 'Клик — плеер с текстом песни'],
   ['social', 'Соцсети', '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 5.8a3 3 0 0 1 0 5.6M17.5 14.2a5 5 0 0 1 3 4.8"/>', 'Подписчики; клик — подробности с графиком'],
   ['tasks', 'Задачи', '<path d="M4 6l2 2 3-3M4 13l2 2 3-3M12 7h8M12 14h8"/>', 'Клик — список задач'],
@@ -345,104 +343,6 @@ $('#resetOrder').addEventListener('click', () => {
   renderLook();
 });
 
-// ---------- Island ----------
-
-async function refreshIslandState() {
-  const st = await dock.islandStatus();
-  if (st.icon) $('#islandIcon').src = st.icon;
-  $('#islandState').innerHTML = '';
-  const dot = Object.assign(document.createElement('span'), { className: 'dot' + (st.running ? ' on' : '') });
-  $('#islandState').append(dot, !st.installed ? 'Не найден: ' + cfg.island.path : st.running ? 'Запущен' : 'Не запущен');
-  $('#islandLaunch').classList.toggle('hidden', !st.installed || st.running);
-  $('#islandSettings').classList.toggle('hidden', !st.installed);
-}
-$('#islandLaunch').addEventListener('click', () => { dock.islandLaunch(); setTimeout(refreshIslandState, 2500); });
-$('#islandSettings').addEventListener('click', () => dock.islandSettings());
-
-function renderIsland() {
-  const box = $('#islandChips');
-  box.innerHTML = '';
-  for (const [id, act] of Object.entries(ISLAND_ACTIONS)) {
-    const on = cfg.island.actions.includes(id);
-    const chip = document.createElement('button');
-    chip.className = 'chip' + (on ? '' : ' off');
-    chip.innerHTML = `<svg viewBox="0 0 24 24">${act.icon}</svg>`;
-    chip.append(act.label);
-    chip.addEventListener('click', () => {
-      // Порядок кнопок — как в каталоге
-      const set = new Set(cfg.island.actions);
-      if (on) set.delete(id); else set.add(id);
-      cfg.island.actions = Object.keys(ISLAND_ACTIONS).filter((k) => set.has(k));
-      save();
-      renderIsland();
-    });
-    box.appendChild(chip);
-  }
-  renderHotkeys();
-}
-
-const DEFAULT_HOTKEYS = {
-  island: 'Ctrl+Alt+I', command: 'Alt+Space', chat: 'Ctrl+Alt+A', voice: 'Ctrl+Alt+D', record: 'Ctrl+Alt+R',
-  screenshot: 'Ctrl+Alt+S', fullshot: 'Ctrl+Alt+Shift+S', ocr: 'Ctrl+Alt+O', clipboard: 'Ctrl+Alt+V', mic: 'Ctrl+Alt+M',
-};
-let recording = null;
-
-function keysHtml(combo) {
-  return combo.split('+').map((k) => `<kbd>${k === 'Shift' ? '⇧' : k}</kbd>`).join('');
-}
-
-function renderHotkeys() {
-  const box = $('#hotkeys');
-  box.innerHTML = '';
-  for (const [id, act] of Object.entries(ISLAND_ACTIONS)) {
-    const row = document.createElement('div');
-    row.className = 'hk-row';
-    row.appendChild(Object.assign(document.createElement('div'), { className: 'name', textContent: act.label }));
-    const keys = document.createElement('button');
-    keys.className = 'keys';
-    keys.innerHTML = keysHtml(cfg.island.hotkeys[id]);
-    keys.addEventListener('click', () => {
-      if (recording) renderHotkeys();
-      recording = { id, el: keys };
-      keys.classList.add('rec');
-      keys.textContent = 'Нажмите сочетание…';
-    });
-    row.appendChild(keys);
-    box.appendChild(row);
-  }
-}
-
-// Запись сочетания: модификаторы + одна клавиша; Esc — отмена, Backspace — стандартное
-document.addEventListener('keydown', (e) => {
-  if (!recording) return;
-  e.preventDefault();
-  const { id } = recording;
-  if (e.key === 'Escape') { recording = null; return renderHotkeys(); }
-  if (e.key === 'Backspace') {
-    cfg.island.hotkeys[id] = DEFAULT_HOTKEYS[id];
-    recording = null;
-    save();
-    return renderHotkeys();
-  }
-  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
-  let key = null;
-  if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
-  else if (/^Digit\d$/.test(e.code)) key = e.code.slice(5);
-  else if (/^F\d{1,2}$/.test(e.code)) key = e.code;
-  else if (e.code === 'Space') key = 'Space';
-  if (!key) return;
-  const parts = [];
-  if (e.ctrlKey) parts.push('Ctrl');
-  if (e.altKey) parts.push('Alt');
-  if (e.shiftKey) parts.push('Shift');
-  if (e.metaKey) parts.push('Win');
-  parts.push(key);
-  cfg.island.hotkeys[id] = parts.join('+');
-  recording = null;
-  save();
-  renderHotkeys();
-});
-
 // ---------- Ассистент ----------
 
 function renderAssistant() {
@@ -482,9 +382,9 @@ function renderAssistant() {
     box.appendChild(row);
   }
 }
-// «Мозг»: сам ключ в окно настроек не возвращается — только маска вида sk-ant-…ab12
+// «Мозг»: сам ключ в окно настроек не возвращается — только маска
 let brStatus = null;
-const KEY_PREFIX = { anthropic: 'sk-ant-', gemini: 'AIza', groq: 'gsk_', openrouter: 'sk-or-' };
+const KEY_PREFIX = { gemini: 'AIza', groq: 'gsk_', openrouter: 'sk-or-' };
 const BR_ERRORS = {
   nokey: 'Сначала сохраните ключ',
   auth: 'Ключ не подошёл',
@@ -492,7 +392,7 @@ const BR_ERRORS = {
   offline: 'Нет связи с сервисом',
   ollama: 'Ollama не запущена. Установите её с ollama.com и скачайте модель, например: ollama pull qwen3',
 };
-const brCfg = () => (cfg.assistant.brain = { enabled: true, provider: 'anthropic', model: 'claude-opus-5-5', models: {}, ...cfg.assistant.brain });
+const brCfg = () => (cfg.assistant.brain = { enabled: true, provider: 'gemini', models: {}, ...cfg.assistant.brain });
 
 async function renderBrain() {
   const b = brCfg();
@@ -519,21 +419,12 @@ async function renderBrain() {
   $('#brKeyName').textContent = `Ключ ${info.name}`;
   const st = $('#brKeyState');
   st.classList.remove('key-bad');
-  st.classList.toggle('key-ok', s.hasKey || s.envKey);
+  st.classList.toggle('key-ok', s.hasKey);
   if (s.hasKey) st.textContent = `Ключ сохранён: ${s.keyHint}. Хранится зашифрованным только на этом компьютере`;
-  else if (s.envKey) st.textContent = 'Используется ключ из переменной ANTHROPIC_API_KEY';
   else st.textContent = `Где взять: ${info.keyHelp}. Хранится зашифрованным только на этом компьютере`;
   $('#brKeyDel').classList.toggle('hidden', !s.hasKey);
   $('#brKey').placeholder = s.hasKey ? 'Новый ключ…' : (KEY_PREFIX[p] || '') + '…';
 
-  // Модель: у Claude — три кнопки, у остальных — список с сервиса
-  const claude = p === 'anthropic';
-  $('#brModel').classList.toggle('hidden', !claude);
-  $('#brModelPick').classList.toggle('hidden', claude);
-  if (claude) {
-    $('#brModelDesc').textContent = 'Opus умнее и лучше держит характер, Sonnet быстрее, Haiku дешевле всех. Оплата — за каждый ответ по тарифам Anthropic';
-    document.querySelectorAll('#brModel button').forEach((x) => x.classList.toggle('on', x.dataset.v === b.model));
-  } else {
     const cur = (b.models || {})[p] || info.defaultModel || '';
     $('#brModelDesc').textContent = p === 'ollama'
       ? 'Модели, скачанные в Ollama. Для разговора и команд подойдут, например, qwen3 или llama3.1'
@@ -544,7 +435,6 @@ async function renderBrain() {
       fillModels(cur ? [{ id: cur, name: '' }] : [], cur);
       if (s.ready) loadModels();
     }
-  }
 }
 const modelCache = {};
 
@@ -581,11 +471,6 @@ $('#brModelSel').addEventListener('change', (e) => {
 });
 $('#brModelLoad').addEventListener('click', loadModels);
 $('#brEnabled').addEventListener('change', (e) => { brCfg().enabled = e.target.checked; save(); });
-document.querySelectorAll('#brModel button').forEach((x) => x.addEventListener('click', () => {
-  brCfg().model = x.dataset.v;
-  save();
-  renderBrain();
-}));
 $('#brKeySave').addEventListener('click', async () => {
   const k = $('#brKey').value.trim();
   if (!k) return;
@@ -906,7 +791,7 @@ $('#citySearch').addEventListener('submit', async (e) => {
       b.querySelector('.name').textContent = r.name;
       b.querySelector('.desc').textContent = [r.admin1, r.country].filter(Boolean).join(', ');
       b.addEventListener('click', () => {
-        cfg.weather = { city: r.name, lat: r.latitude, lon: r.longitude };
+        cfg.weather = { ...cfg.weather, city: r.name, lat: r.latitude, lon: r.longitude };
         save();
         renderCity();
         box.classList.add('hidden');
@@ -971,7 +856,6 @@ dock.config().then(async (c) => {
   renderLook();
   renderApps();
   renderWidgets();
-  renderIsland();
   renderCity();
   renderPomodoro();
   socView = await dock.social();
