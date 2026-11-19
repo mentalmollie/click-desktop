@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; connect-src https://geocoding-api.open-meteo.com; style-src 'self' 'unsafe-inline'">
+  <title>Click — настройки</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="titlebar">Click — настройки</div>
+
+  <aside>
+    <div class="brand">
+      <img class="logo-img" src="assets/app-icon.png" alt="">
+      <div><div class="brand-name">Click</div><div class="brand-ver" id="version">Версия</div></div>
+    </div>
+    <nav id="nav">
+      <button data-page="panel" class="active"><svg viewBox="0 0 24 24"><rect x="2.5" y="14" width="19" height="6" rx="3"/><path d="M4 9.5h16M7 5h10"/></svg>Панель</button>
+      <hr>
+      <button data-page="apps"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>Приложения</button>
+      <button data-page="widgets"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Виджеты</button>
+      <button data-page="island"><svg viewBox="0 0 24 24"><rect x="4" y="8.5" width="16" height="7" rx="3.5"/><circle cx="16.5" cy="12" r="1.2" class="solid"/></svg>Island</button>
+      <button data-page="assistant"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4.5"/><path d="M5 20.5c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/><path d="M8.5 7.5c1-1.8 2.2-2.6 3.5-2.6 1.6 0 2.8.8 3.6 2.4" class="solid" opacity=".0"/></svg>Ассистент</button>
+      <button data-page="social"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 5.8a3 3 0 0 1 0 5.6M17.5 14.2a5 5 0 0 1 3 4.8"/></svg>Соцсети</button>
+      <button data-page="weather"><svg viewBox="0 0 24 24"><circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 2.5v1.2M2.5 8.5h1.2M4.3 4.3l.9.9M12.7 4.3l-.9.9"/><path d="M9 20h8a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9 1.4A2.8 2.8 0 0 0 9 20z"/></svg>Погода</button>
+      <button data-page="pomodoro"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 2M9.5 3h5"/></svg>Помодоро</button>
+      <hr>
+      <button data-page="system"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8" class="dark"/><circle cx="15" cy="12" r="1.8" class="dark"/><circle cx="7" cy="17" r="1.8" class="dark"/></svg>Система</button>
+      <button data-page="updates"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/></svg>Обновления</button>
+    </nav>
+    <div class="aside-foot">
+      <div class="hint">Изменения сохраняются сразу</div>
+      <button class="quit" id="quit"><svg viewBox="0 0 24 24"><path d="M12 3v8M7 6.5a7.5 7.5 0 1 0 10 0"/></svg>Выйти из Click</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- Панель -->
+    <section class="page" id="page-panel">
+      <h1>Панель</h1>
+      <div class="preview"><img id="preview" alt=""><span class="cap-label">Панель сейчас</span></div>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Размер</div><div class="desc">Масштаб всех элементов. Если панель не помещается, она ужмётся сама</div></div>
+          <div class="range"><input type="range" id="scale" min="0.8" max="1.6" step="0.05"><span id="scaleVal"></span></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Прозрачность фона панели</div><div class="desc">Меняется только подложка — иконки и виджеты остаются чёткими. Без размытия при 100% остаются одни капсулы</div></div>
+          <div class="range"><input type="range" id="bgTransparency" min="0" max="1" step="0.05"><span id="bgTransparencyVal"></span></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Размытие фона</div><div class="desc">Матовое стекло: обои под панелью размываются. Выключите, чтобы фон стал по-настоящему прозрачным</div></div>
+          <label class="switch"><input type="checkbox" id="blur"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Край экрана</div><div class="desc">Где стоит панель</div></div>
+          <div class="segmented" id="position"><button data-v="bottom">Снизу</button><button data-v="top">Сверху</button></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Ширина панели</div><div class="desc">По содержимому или от края до края экрана</div></div>
+          <div class="segmented" id="widthMode"><button data-v="auto">По содержимому</button><button data-v="full">Во всю ширину</button></div>
+        </div>
+        <div class="row block">
+          <div class="txt"><div class="name">Расположение значков</div><div class="desc">Работает, когда панель во всю ширину (при выборе включится сама). Блоки можно и просто перетаскивать по панели — к краю или в центр</div></div>
+          <div class="chips" id="layoutChips"></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Отступ от края</div></div>
+          <div class="range"><input type="range" id="margin" min="0" max="60" step="2"><span id="marginVal"></span></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Автоматически скрывать панель</div><div class="desc">Панель уезжает за край экрана, когда курсор уходит с неё, и выезжает, если подвести курсор к краю. Окна при этом занимают весь экран</div></div>
+          <label class="switch"><input type="checkbox" id="autoHide"><span></span></label>
+        </div>
+        <div class="row" id="autoHideDelayRow">
+          <div class="txt"><div class="name">Задержка перед скрытием</div><div class="desc">Сколько панель ждёт после того, как курсор ушёл</div></div>
+          <div class="segmented" id="autoHideDelay"><button data-v="300">Быстро</button><button data-v="700">Обычно</button><button data-v="1500">Медленно</button></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Поверх всех окон</div><div class="desc">Панель не перекрывается другими окнами</div></div>
+          <label class="switch"><input type="checkbox" id="onTop"><span></span></label>
+        </div>
+      </div>
+
+      <div class="section-label">Своё расположение</div>
+      <div class="card layout-editor" id="layoutEditor">
+        <div class="row block">
+          <div class="txt"><div class="desc">Перетаскивайте блоки между зонами и внутри них. Изменения сразу видны на панели</div></div>
+          <div class="zones">
+            <div class="zone-col" data-zone="L"><div class="zone-title">Слева</div><div class="zone-items"></div></div>
+            <div class="zone-col" data-zone="C"><div class="zone-title">По центру</div><div class="zone-items"></div></div>
+            <div class="zone-col" data-zone="R"><div class="zone-title">Справа</div><div class="zone-items"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Приложения -->
+    <section class="page hidden" id="page-apps">
+      <h1>Приложения</h1>
+      <div class="card">
+        <div class="row block">
+          <div class="txt"><div class="name">Закреплённые</div><div class="desc">Перетаскивайте, чтобы поменять порядок. Без капсулы — стоят слева у «Пуска». Клик по открытому приложению переключает на его окно, средняя кнопка мыши — новое окно</div></div>
+          <div class="app-list" id="appList"></div>
+          <div class="actions">
+            <button class="primary" id="addApp">+ Добавить приложение</button>
+            <button id="detectApps">Найти установленные</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Открытые приложения</div><div class="desc">Отдельная капсула с иконками всех открытых окон, которые не закреплены. Клик — переключиться, по активному — свернуть</div></div>
+          <label class="switch"><input type="checkbox" data-widget="openApps"><span></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Виджеты -->
+    <section class="page hidden" id="page-widgets">
+      <h1>Виджеты</h1>
+      <div class="preview"><img class="preview-img" alt=""><span class="cap-label">Панель сейчас</span></div>
+      <div class="card">
+        <div class="row block">
+          <div class="txt"><div class="name">Что на панели</div><div class="desc">Оставьте только нужное — панель перестроится сама. Порядок меняйте прямо на панели: перетащите виджет мышью</div></div>
+          <div class="chips" id="widgetChips"></div>
+          <div class="actions"><button id="resetOrder">Порядок по умолчанию</button></div>
+        </div>
+      </div>
+      <div class="section-label">Настройки каждого виджета</div>
+      <div id="widgetCards"></div>
+    </section>
+
+    <!-- Island -->
+    <section class="page hidden" id="page-island">
+      <h1>Island</h1>
+      <div class="card">
+        <div class="row">
+          <div class="island-head">
+            <img id="islandIcon" alt="">
+            <div class="txt"><div class="name">Island</div><div class="desc" id="islandState">Проверяю…</div></div>
+          </div>
+          <div class="actions tight">
+            <button id="islandLaunch">Запустить</button>
+            <button id="islandSettings">Настройки Island</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Капсула Island на панели</div><div class="desc">Значок острова и кнопки его функций прямо в доке</div></div>
+          <label class="switch"><input type="checkbox" data-widget="island"><span></span></label>
+        </div>
+        <div class="row block">
+          <div class="txt"><div class="name">Кнопки в капсуле</div><div class="desc">Нажатие кнопки посылает острову его горячую клавишу. Если Island не запущен, док сначала запустит его</div></div>
+          <div class="chips" id="islandChips"></div>
+        </div>
+      </div>
+      <div class="section-label">Горячие клавиши Island</div>
+      <div class="card" id="hotkeys"></div>
+      <p class="note">Сочетания должны совпадать с Island → Настройки → Клавиши. Нажмите на сочетание, чтобы записать новое; Backspace — вернуть стандартное.</p>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Тексты песен</div><div class="desc">Клик по музыке в доке открывает плеер с синхронным текстом из LRCLIB — той же базы, что использует Island</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ассистент -->
+    <section class="page hidden" id="page-assistant">
+      <h1>Ассистент</h1>
+      <div class="persona-pick" id="asPersona">
+        <button data-v="patrick"><img src="assets/patrick/smug.png" alt=""><b>Патрик</b><span></span></button>
+        <button data-v="teresa"><img src="assets/teresa/smug.png" alt=""><b>Тереза</b><span></span></button>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="assist-head">
+            <img id="asImg" src="assets/patrick/tip.png" alt="">
+            <div class="txt"><div class="name" id="asName">Патрик</div><div class="desc" id="asHint"></div></div>
+          </div>
+          <label class="switch"><input type="checkbox" id="asEnabled"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Где живёт</div><div class="desc">Сидит на своём месте на панели или прогуливается по нижнему краю экрана</div></div>
+          <div class="segmented" id="asMode"><button data-v="sit">Сидит на панели</button><button data-v="walk">Гуляет по экрану</button></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Размер</div></div>
+          <div class="segmented" id="asSize"><button data-v="s">Маленький</button><button data-v="m">Обычный</button><button data-v="l">Большой</button></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Разговорчивость</div><div class="desc">Как часто ассистент комментирует происходящее сам</div></div>
+          <div class="segmented" id="asTalk"><button data-v="quiet">Молчун</button><button data-v="normal">Обычно</button><button data-v="chatty">Болтун</button></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Говорить вслух</div><div class="desc">Озвучивать ответы голосом Windows</div></div>
+          <label class="switch"><input type="checkbox" id="asSpeak"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Звук печати</div><div class="desc" id="asTypeDesc">Пока ответ появляется в облачке. Когда включено «Говорить вслух» — молчит, чтобы не мешать голосу</div></div>
+          <div class="segmented" id="asTypeSound"><button data-v="typewriter">Машинка</button><button data-v="blip">Бип</button><button data-v="off">Выкл</button></div>
+        </div>
+        <div class="row" id="asTypeVolRow">
+          <div class="txt"><div class="name">Громкость звука печати</div></div>
+          <div class="range"><input type="range" id="asTypeVol" min="0.05" max="1" step="0.05"></div>
+        </div>
+      </div>
+      <div class="section-label">Мозг (нейросеть)</div>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Свободный разговор</div><div class="desc">Отвечает своими словами, сам открывает программы, управляет музыкой, ведёт задачи и напоминания, знает погоду, а с Claude — ещё и ищет в интернете</div></div>
+          <label class="switch"><input type="checkbox" id="brEnabled"><span></span></label>
+        </div>
+        <div class="row block">
+          <div class="txt"><div class="name">Нейросеть</div><div class="desc">Gemini, Groq и OpenRouter бесплатны по ключу с лимитами. Ollama работает прямо на этом ПК — бесплатно и без интернета. Поиск в интернете есть только у Claude</div></div>
+          <div class="provider-pick" id="brProvider"></div>
+        </div>
+        <div class="row" id="brKeyRow">
+          <div class="txt"><div class="name" id="brKeyName">Ключ API</div><div class="desc" id="brKeyState"></div></div>
+          <div class="key-field">
+            <input type="password" id="brKey" placeholder="sk-ant-…" spellcheck="false" autocomplete="off">
+            <button class="ghost" id="brKeySave">Сохранить</button>
+            <button class="ghost hidden" id="brKeyDel">Удалить</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Модель</div><div class="desc" id="brModelDesc">Opus умнее и лучше держит характер, Sonnet быстрее, Haiku дешевле всех. Оплата — за каждый ответ по тарифам Anthropic</div></div>
+          <div class="segmented" id="brModel"><button data-v="claude-opus-5-5">Opus 5.5</button><button data-v="claude-sonnet-5-5">Sonnet 5.5</button><button data-v="claude-haiku-5-5">Haiku 5.5</button></div>
+          <div class="model-pick hidden" id="brModelPick">
+            <select id="brModelSel"></select>
+            <button class="ghost" id="brModelLoad">Обновить список</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Начать разговор заново</div><div class="desc">Ассистент помнит беседу, пока док запущен. Здесь можно стереть её сразу</div></div>
+          <button class="ghost" id="brReset">Забыть разговор</button>
+        </div>
+      </div>
+      <div class="section-label">Spotify</div>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Музыка в Spotify</div><div class="desc" id="spState">Ассистент находит песню, исполнителя, альбом или плейлист и сразу включает в вашем Spotify (нужен Premium)</div></div>
+          <div class="key-field">
+            <button class="ghost" id="spLogin">Войти в Spotify</button>
+            <button class="ghost hidden" id="spLogout">Выйти</button>
+          </div>
+        </div>
+        <div class="row block" id="spSetup">
+          <div class="txt"><div class="name">Настройка (один раз, ~5 минут)</div>
+            <div class="desc sp-steps">
+              1. Откройте <a href="#" id="spDash">developer.spotify.com/dashboard</a> и войдите своим аккаунтом Spotify.<br>
+              2. Нажмите «Create app». Название и описание — любые, например Click.<br>
+              3. В «Redirect URIs» вставьте адрес ниже и нажмите «Add». В «Which API/SDKs» отметьте «Web API». Сохраните.<br>
+              4. Откройте созданное приложение → Settings, скопируйте «Client ID» и вставьте сюда. Потом — «Войти в Spotify».
+            </div>
+          </div>
+          <div class="sp-uri"><code id="spRedirect"></code><button class="ghost" id="spCopy">Копировать</button></div>
+          <div class="key-field"><input type="text" id="spClient" placeholder="Client ID (32 символа)" spellcheck="false" autocomplete="off"><button class="ghost" id="spSave">Сохранить</button></div>
+        </div>
+      </div>
+      <div class="section-label">Голос</div>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name" id="vcName">Слушать имя</div><div class="desc" id="vcDesc">Скажите имя ассистента и команду: «Патрик, открой Telegram». Одно имя — и следующая фраза будет командой</div></div>
+          <label class="switch"><input type="checkbox" id="vcEnabled"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Распознавание речи</div><div class="desc">Groq — бесплатно по ключу, быстро и точно; звук фраз уходит в Groq. «На этом ПК» — без интернета, звук никуда не уходит, но медленнее</div></div>
+          <div class="segmented" id="vcEngine"><button data-v="groq">Groq</button><button data-v="local">На этом ПК</button></div>
+        </div>
+        <div class="row" id="vcGroqRow">
+          <div class="txt"><div class="name">Ключ Groq</div><div class="desc" id="vcGroqState"></div></div>
+          <div class="key-field">
+            <input type="password" id="vcGroqKey" placeholder="gsk_…" spellcheck="false" autocomplete="off">
+            <button class="ghost" id="vcGroqSave">Сохранить</button>
+          </div>
+        </div>
+        <div class="row hidden" id="vcLocalRow">
+          <div class="txt"><div class="name">Распознаватель на этом ПК</div><div class="desc" id="vcLocalState"></div></div>
+          <div class="key-field">
+            <div class="segmented" id="vcModel"><button data-v="tiny">Лёгкий</button><button data-v="base">Быстрый</button><button data-v="small">Точный</button></div>
+            <button class="ghost" id="vcInstall">Скачать</button>
+            <button class="ghost hidden" id="vcRemove">Удалить</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Микрофон</div><div class="desc">Каким микрофоном слушать</div></div>
+          <div class="model-pick"><select id="vcDevice"></select></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Чувствительность микрофона</div><div class="desc">Выше — слышит тихую речь издалека, но чаще реагирует на шум</div></div>
+          <div class="range"><input type="range" id="vcSens" min="0" max="1" step="0.05"></div>
+        </div>
+      </div>
+      <div class="section-label">Напоминания</div>
+      <div class="card"><div class="row block"><div class="app-list" id="asReminders"></div></div></div>
+      <p class="note">Без ключа ассистент понимает только команды: «открой …», «напомни через 10 минут …», «добавь задачу …», «погода», «сводка», «громче», «пауза», «помодоро». Кнопки под строкой вопроса всегда работают без «мозга».</p>
+    </section>
+
+    <!-- Соцсети -->
+    <section class="page hidden" id="page-social">
+      <h1>Соцсети</h1>
+      <div class="card">
+        <div class="row block">
+          <div class="txt"><div class="name">Аккаунты</div><div class="desc">Число подписчиков обновляется каждые 30 минут и показывается на панели. Перетаскивайте строки, чтобы поменять порядок</div></div>
+          <div class="app-list" id="socAccounts"></div>
+        </div>
+        <div class="row block">
+          <div class="txt"><div class="name">Добавить аккаунт</div><div class="desc" id="socHint"></div></div>
+          <div class="chips" id="socPlatforms"></div>
+          <form class="search" id="socAdd">
+            <input id="socHandle" placeholder="Имя аккаунта или ссылка на профиль" autocomplete="off" spellcheck="false">
+            <button class="primary" type="submit">Добавить</button>
+          </form>
+        </div>
+      </div>
+      <div class="section-label">Ключи (необязательно)</div>
+      <div class="card">
+        <div class="row block">
+          <div class="txt"><div class="name">YouTube API key</div><div class="desc">Без ключа YouTube отдаёт число округлённым (например, 30,7 млн). С ключом — точное. Ключ бесплатный: Google Cloud Console → YouTube Data API v3 → Credentials</div></div>
+          <input class="field" type="password" id="ytKey" placeholder="AIza…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="row block">
+          <div class="txt"><div class="name">Токен ВКонтакте</div><div class="desc">Нужен только для ВКонтакте: без него VK число не показывает. Подойдёт сервисный ключ своего приложения (vk.com/apps?act=manage → Настройки → Сервисный ключ доступа)</div></div>
+          <input class="field" type="password" id="vkToken" placeholder="Сервисный ключ" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <p class="note">Instagram и X (Twitter) без входа в аккаунт число подписчиков не показывают, поэтому их здесь нет. Twitch считается через открытый сервис decapi.me.</p>
+    </section>
+
+    <!-- Погода -->
+    <section class="page hidden" id="page-weather">
+      <h1>Погода</h1>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Город</div><div class="desc" id="curCity"></div></div>
+        </div>
+        <div class="row block">
+          <form class="search" id="citySearch">
+            <input id="cityInput" placeholder="Название города, например Казань" autocomplete="off">
+            <button class="primary" type="submit">Найти</button>
+          </form>
+          <div class="results hidden" id="cityResults"></div>
+        </div>
+      </div>
+      <p class="note">Данные Open-Meteo, ключ не нужен. Клик по погоде в доке открывает прогноз.</p>
+    </section>
+
+    <!-- Помодоро -->
+    <section class="page hidden" id="page-pomodoro">
+      <h1>Помодоро</h1>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Фокус</div><div class="desc">Длительность рабочего отрезка</div></div>
+          <div class="stepper" data-key="work"><button>−</button><span></span><button>+</button></div>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Перерыв</div><div class="desc">Длительность отдыха</div></div>
+          <div class="stepper" data-key="break"><button>−</button><span></span><button>+</button></div>
+        </div>
+      </div>
+      <p class="note">Клик по «жидкому» виджету — старт и пауза, правый клик — сброс.</p>
+    </section>
+
+    <!-- Система -->
+    <section class="page hidden" id="page-system">
+      <h1>Система</h1>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Запускать вместе с Windows</div><div class="desc">Док появится сразу после входа в систему</div></div>
+          <label class="switch"><input type="checkbox" id="autostart"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Окна не заходят на панель</div><div class="desc">Развёрнутые окна заканчиваются над доком, как над панелью задач Windows. Выключите, чтобы окна занимали весь экран, а док лежал поверх</div></div>
+          <label class="switch"><input type="checkbox" id="reserveSpace"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Скрывать панель задач Windows</div><div class="desc">Пока Click запущен, стандартная панель не появляется. После выхода она вернётся, даже если док упадёт. Трей, звук и сеть — Win+A, уведомления — Win+N</div></div>
+          <label class="switch"><input type="checkbox" id="hideTaskbar"><span></span></label>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Перезапустить док</div></div>
+          <button class="ghost" id="restart">Перезапустить</button>
+        </div>
+        <div class="row">
+          <div class="txt"><div class="name">Папка программы</div><div class="desc">Там лежат config.json и todos.json</div></div>
+          <button class="ghost" id="folder">Открыть</button>
+        </div>
+      </div>
+    </section>
+    <section class="page hidden" id="page-updates">
+      <h1>Обновления Click</h1>
+      <div class="card">
+        <div class="row">
+          <div class="txt"><div class="name">Установленная версия</div><div class="desc" id="updateCurrentVersion">Загрузка…</div></div>
+          <button class="ghost" id="updateCheck">Проверить обновления</button>
+        </div>
+        <div class="row block">
+          <div class="name" id="updateMessage" role="status" aria-live="polite">Проверьте, доступна ли новая версия Click.</div>
+          <div class="hidden" id="updateProgressWrap">
+            <progress id="updateProgress" max="100" value="0" aria-label="Скачивание обновления"></progress>
+            <div class="desc" id="updateProgressText"></div>
+          </div>
+          <div class="actions">
+            <button class="primary hidden" id="updateDownload">Скачать обновление</button>
+            <button class="primary hidden" id="updateInstall">Установить обновление</button>
+            <button class="hidden" id="updateCancel">Отменить скачивание</button>
+          </div>
+          <div class="desc hidden" id="updateNotes"></div>
+        </div>
+      </div>
+      <p class="note">Новая версия скачивается здесь. При установке Click закроется. Ваши настройки и данные сохранятся.</p>
+      <div class="card"><div class="row">
+        <div class="txt"><div class="name">Сайт Click</div><div class="desc">Скачать приложение и посмотреть, что нового</div></div>
+        <button class="ghost" id="updateWebsite">Открыть сайт</button>
+      </div></div>
+    </section>
+  </main>
+  <script src="shared.js"></script>
+  <script src="typesound.js"></script>
+  <script src="settings.js"></script>
+  <script src="settings-updates.js"></script>
+</body>
+</html>

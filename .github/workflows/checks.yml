@@ -1,0 +1,25 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Check panel, flight, mouse hold and updates
+        shell: pwsh
+        run: |
+          node tools/test-dock.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/test-flight.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/test-hold.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/test-updates.js
+          exit $LASTEXITCODE

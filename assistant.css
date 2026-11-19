@@ -1,0 +1,149 @@
+:root { --h: 120px; --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: transparent; overflow: hidden; height: 100%; user-select: none; font-family: var(--font); }
+.hidden { display: none !important; }
+
+#stage { position: absolute; inset: 0; }
+.below #stage { transform: scaleY(-1); }
+.below #stage > * { transform: scaleY(-1); }
+
+/* Патрик: стоит внизу окна, ногами на панели */
+#char {
+  position: absolute; bottom: 0; left: 50%; height: var(--h); aspect-ratio: var(--ar, 1.57);
+  transform: translateX(-50%) rotate(var(--spin, 0deg)); transform-origin: 50% 72%; cursor: grab;
+}
+#char:active { cursor: grabbing; }
+/* Обёртка кадра: дыхание и прочие движения */
+#spritebox {
+  position: relative; width: 100%; height: 100%; transform-origin: 50% 100%;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35));
+  /* Дыхание — шагами (6 на вдох, 6 на выдох): масштаб меняется на 1–2%, на глаз так же плавно,
+     а прозрачное окно перерисовывается ~4 раза в секунду вместо 60 */
+  animation: breathe 3.2s steps(6, jump-none) infinite;
+}
+#sprite { width: 100%; height: 100%; display: block; }
+/* Смена кадра — короткий «пружинный» подскок */
+#spritebox.pop { animation: pop .22s ease-out, breathe 3.2s steps(6, jump-none) .22s infinite; }
+@keyframes breathe { 50% { transform: scale(1.012, 1.025); } }
+@keyframes pop { 0% { transform: scale(.94, 1.06); } 60% { transform: scale(1.04, .97); } 100% { transform: none; } }
+
+/* Идёт влево — зеркалим Патрика (облачко не трогаем) */
+.left #char { transform: translateX(-50%) scaleX(-1) rotate(var(--spin, 0deg)); }
+/* Шагает: покачивается в такт смене поз (если нет покадровой ходьбы) */
+body:not(.animated).walking #spritebox { animation: step .38s ease-in-out infinite; }
+@keyframes step { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-3px) rotate(1.5deg); } }
+
+/* Танцует под музыку */
+.dance #spritebox { animation: dance .9s ease-in-out infinite; }
+@keyframes dance { 0%, 100% { transform: translateY(0) rotate(-2deg); } 25% { transform: translateY(-5px) rotate(0); } 50% { transform: translateY(0) rotate(2deg); } 75% { transform: translateY(-5px) rotate(0); } }
+/* Подпрыгивает от радости */
+.hop #spritebox { animation: hop .5s ease-out 2; }
+@keyframes hop { 40% { transform: translateY(-12px) scale(.98, 1.03); } 70% { transform: translateY(0) scale(1.03, .97); } }
+/* Позвали: лёгкий подскок «а?» */
+#spritebox.perk { animation: perk .35s ease-out, breathe 3.2s steps(6, jump-none) .35s infinite; }
+@keyframes perk { 0% { transform: none; } 35% { transform: translateY(-7px) scale(.98, 1.03); } 70% { transform: translateY(0) scale(1.02, .98); } 100% { transform: none; } }
+/* Ждёт команду: наклон к человеку и мягкое покачивание («слушаю») */
+.listening #spritebox { animation: listen 1.8s ease-in-out infinite; }
+@keyframes listen { 0%, 100% { transform: rotate(-1.5deg) translateY(0); } 50% { transform: rotate(-3.5deg) translateY(-2px); } }
+/* Держат в воздухе: висит, точка опоры — у головы (там его «держат»); покачивается как подвешенный.
+   Наклон от движения мышки — через --spin у #char */
+.dangling #char { transform-origin: 50% 30%; cursor: grabbing; }
+.dangling #spritebox { transform-origin: 50% 22%; animation: dangle 1.1s ease-in-out infinite; }
+@keyframes dangle { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+/* Падает: вытягивается и трепещет */
+.falling #spritebox { animation: falling .18s ease-in-out infinite alternate; }
+@keyframes falling { from { transform: scale(.96, 1.05) rotate(-1.5deg); } to { transform: scale(.98, 1.07) rotate(1.5deg); } }
+/* Трясут мышкой: голова мотается из стороны в сторону */
+.shaken #char { transform-origin: 50% 30%; cursor: grabbing; }
+.shaken #spritebox { transform-origin: 50% 22%; animation: shaken .16s linear infinite; }
+@keyframes shaken { 0%, 100% { transform: rotate(-4deg) translateX(-2px); } 50% { transform: rotate(4deg) translateX(2px); } }
+/* Кружится голова: кадры сами шатаются, сверху — лёгкое покачивание по кругу и звёздочки над головой */
+.dizzy:not(.dangling):not(.shaken) #spritebox { animation: woozy 1.4s ease-in-out infinite; }
+@keyframes woozy {
+  0%, 100% { transform: rotate(-1.5deg) translateX(-1px); } 25% { transform: rotate(0) translateY(-1px); }
+  50% { transform: rotate(1.5deg) translateX(1px); } 75% { transform: rotate(0) translateY(1px); }
+}
+#dizzy {
+  position: absolute; left: 50%; top: calc(var(--pad, 0%) - 4%); width: 0; height: 0;
+  margin-left: calc(var(--fh, var(--h)) * -0.04); display: none; pointer-events: none; z-index: 2;
+}
+.dizzy #dizzy { display: block; }
+.dangling #dizzy { top: calc(var(--pad, 0%) + 2%); }
+#dizzy i {
+  position: absolute; left: -7px; top: -8px; font: 700 15px var(--font); font-style: normal; color: #ffd84a;
+  text-shadow: 0 0 6px rgba(255, 210, 60, .8), 0 1px 2px rgba(0, 0, 0, .5);
+  animation: orbit 1.1s linear infinite;
+}
+#dizzy i:nth-child(2) { animation-delay: -.37s; color: #fff3b0; font-size: 12px; }
+#dizzy i:nth-child(3) { animation-delay: -.73s; }
+/* Эллипс вокруг головы: «дальние» звёзды меньше и бледнее */
+@keyframes orbit {
+  0% { transform: translate(28px, 0) scale(1); opacity: 1; }
+  25% { transform: translate(0, 7px) scale(1.15); opacity: 1; }
+  50% { transform: translate(-28px, 0) scale(.9); opacity: .9; }
+  75% { transform: translate(0, -7px) scale(.65); opacity: .55; }
+  100% { transform: translate(28px, 0) scale(1); opacity: 1; }
+}
+/* Трясётся от перегрузки или злости */
+.shake #spritebox { animation: shake .12s linear infinite; }
+@keyframes shake { 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+/* Спит — дышит медленно */
+.sleeping #spritebox { animation: breathe 4.5s steps(6, jump-none) infinite; }
+
+/* Микрофон: тусклая точка — слушает имя; ярче — слышит речь; пульсирует — ждёт команду после имени */
+#mic {
+  position: absolute; left: 50%; top: calc(var(--pad, 0%) + 2%); width: 7px; height: 7px; margin-left: calc(var(--fh, var(--h)) * -0.22);
+  border-radius: 50%; background: #9aa0b4; opacity: 0; transition: opacity .2s, background .2s, box-shadow .2s;
+  pointer-events: none;
+}
+/* Видна только когда позвали: услышал имя с командой — коротко горит, одно имя — пульсирует, ждёт команду */
+.mic-called #mic { opacity: 1; background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
+.mic-wait #mic { opacity: 1; background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; animation: micPulse 1s ease-in-out infinite; }
+@keyframes micPulse { 50% { transform: scale(1.5); } }
+.left #mic { transform: scaleX(-1); }
+
+#zzz { position: absolute; right: 18%; top: 4%; display: none; font: 700 14px var(--font); color: #cfd6ff; }
+.sleeping #zzz { display: block; }
+.animated #zzz { display: none; }   /* в кадрах сна «Z» уже нарисованы */
+.animated.sitsleep #zzz { display: block; top: 34%; right: 30%; }   /* …кроме «спит сидя» */
+#zzz i { position: absolute; font-style: normal; opacity: 0; animation: zz 3s ease-out infinite; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+#zzz i:nth-child(2) { animation-delay: 1s; font-size: 17px; }
+#zzz i:nth-child(3) { animation-delay: 2s; font-size: 20px; }
+@keyframes zz { 0% { opacity: 0; transform: translate(0, 0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(14px, -34px); } }
+
+/* Облачко с репликой — над головой Патрика, в стиле панели */
+#bubble {
+  /* над головой: рост фигуры (--fh), а не весь холст с пустым запасом сверху */
+  position: absolute; left: 50%; bottom: calc(var(--fh, var(--h)) + 6px); transform: translateX(-50%);
+  width: max-content; max-width: 330px; min-width: 120px;
+  padding: 10px 14px; border-radius: 16px;
+  background: rgba(24, 24, 30, .94); border: 1px solid rgba(255, 255, 255, .12);
+  color: #f5f5f7; font-size: 13px; line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  animation: bubbleIn .2s ease-out;
+}
+#bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; margin-left: -6px;
+  background: rgba(24, 24, 30, .94); border-right: 1px solid rgba(255, 255, 255, .12); border-bottom: 1px solid rgba(255, 255, 255, .12);
+  transform: rotate(45deg);
+}
+@keyframes bubbleIn { from { opacity: 0; transform: translate(-50%, 6px) scale(.96); } }
+#btext { white-space: pre-line; }
+#btext:empty { display: none; }
+#btext b { color: #fff; }
+
+#ask { margin-top: 2px; }
+#btext:not(:empty) + #ask { margin-top: 10px; }
+#q {
+  width: 290px; height: 34px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .07);
+  color: #fff; font: 13px var(--font); outline: none;
+}
+#q:focus { border-color: rgba(255, 255, 255, .32); }
+#q::placeholder { color: rgba(255, 255, 255, .45); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-width: 290px; }
+.chips button {
+  border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .08); color: #fff;
+  font: 500 11.5px var(--font); padding: 4px 10px; border-radius: 99px; cursor: default;
+}
+.chips button:hover { background: rgba(255, 255, 255, .16); }

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; connect-src https://api.open-meteo.com; style-src 'self' 'unsafe-inline'">
+  <title>Ассистент</title>
+  <link rel="stylesheet" href="assistant.css">
+</head>
+<body>
+  <div id="stage">
+    <div id="bubble" class="hidden">
+      <div id="btext"></div>
+      <form id="ask" class="hidden" autocomplete="off">
+        <input id="q" placeholder="Спросите…" spellcheck="false">
+        <div class="chips">
+          <button type="button" data-q="сводка">Сводка дня</button>
+          <button type="button" data-q="погода">Погода</button>
+          <button type="button" data-q="задачи">Задачи</button>
+          <button type="button" data-q="что ты умеешь">Что умеешь?</button>
+        </div>
+      </form>
+    </div>
+    <div id="char">
+      <div id="zzz"><i>z</i><i>z</i><i>z</i></div>
+      <div id="mic" title="Слушаю своё имя"></div>
+      <div id="dizzy"><i>★</i><i>✦</i><i>★</i></div>
+      <div id="spritebox">
+        <img id="sprite" draggable="false" alt="">
+      </div>
+    </div>
+  </div>
+  <script src="shared.js"></script>
+  <script src="typesound.js"></script>
+  <script src="assistant.js"></script>
+  <script src="assistant-voice.js"></script>
+</body>
+</html>

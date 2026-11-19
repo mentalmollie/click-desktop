@@ -59,4 +59,3 @@ node tools/test-updates.js
 ## Новые версии
 
 Перед сборкой обновите `version` в `package.json` и `package-lock.json`, а также `release-notes.json`. Подробности публикации — в [tools/UPDATES.md](tools/UPDATES.md).
-

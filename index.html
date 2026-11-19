@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; connect-src https://api.open-meteo.com; style-src 'self' 'unsafe-inline'">
+  <title>Click</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="dock">
+    <!-- Зоны для панели во всю ширину: блоки раскладываются по ним в renderer.js -->
+    <div class="zone" id="zoneL"></div>
+    <div class="zone" id="zoneC"></div>
+    <div class="zone" id="zoneR"></div>
+    <div class="plain" id="startBlock">
+      <button class="btn start" id="start" title="Пуск">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8.3" height="8.3" rx="1.2"/><rect x="12.7" y="3" width="8.3" height="8.3" rx="1.2"/><rect x="3" y="12.7" width="8.3" height="8.3" rx="1.2"/><rect x="12.7" y="12.7" width="8.3" height="8.3" rx="1.2"/></svg>
+      </button>
+    </div>
+    <div class="plain" id="leftapps"></div>
+
+    <section class="cap stack clickable" id="w-system" data-w="system" title="Система · клик — подробности">
+      <span class="logo-tile" id="sysLogo">
+        <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" class="cut"/><path d="M9 2.5v3M15 2.5v3M9 18.5v3M15 18.5v3M2.5 9h3M2.5 15h3M18.5 9h3M18.5 15h3"/></svg>
+      </span>
+      <div class="sys-body" id="sysBody"></div>
+    </section>
+
+    <div class="caps" id="capapps"></div>
+
+    <section class="cap group hidden" id="w-open" data-w="openApps"></section>
+
+    <section class="cap group island hidden" id="w-island" data-w="island"></section>
+
+    <section class="cap media clickable hidden" id="w-media" data-w="media">
+      <span class="cover" id="cover"></span>
+      <span class="text" id="mtext">
+        <span class="title" id="mtitle"></span>
+        <span class="sub" id="martist"></span>
+      </span>
+      <span class="ctl" id="mctl">
+        <button data-key="prev" title="Назад"><svg viewBox="0 0 24 24"><path d="M6 5h2.2v14H6zM20 5.5v13L9.5 12z"/></svg></button>
+        <button data-key="playpause" class="pp" title="Пауза/воспроизведение"><svg viewBox="0 0 24 24" id="ppicon"></svg></button>
+        <button data-key="next" title="Вперёд"><svg viewBox="0 0 24 24"><path d="M15.8 5H18v14h-2.2zM4 5.5v13L14.5 12z"/></svg></button>
+      </span>
+    </section>
+
+    <section class="cap social clickable hidden" id="w-social" data-w="social" title="Соцсети · клик — подробности"></section>
+
+    <section class="cap event clickable" id="w-tasks" data-w="tasks" title="Задачи">
+      <span class="date-tile" id="evTile"><span class="dow" id="evDow"></span><span class="day" id="evDay"></span></span>
+      <span class="text">
+        <span class="title-row"><span class="bar"></span><span class="title" id="evTitle"></span></span>
+        <span class="sub" id="evSub"></span>
+      </span>
+    </section>
+
+    <section class="cap stack disk clickable" id="w-disk" data-w="disk" title="Диски · клик — подробности">
+      <div class="disk-body" id="diskBody"></div>
+    </section>
+
+    <section class="cap liquid" id="w-pomodoro" data-w="pomodoro" title="Помодоро · клик — старт/пауза · правый клик — сброс">
+      <span class="water" id="water">
+        <svg class="wave back" viewBox="0 0 96 6" preserveAspectRatio="none"><path d="M0 3 Q12 0 24 3 T48 3 T72 3 T96 3 V6 H0Z"/></svg>
+        <svg class="wave front" viewBox="0 0 96 6" preserveAspectRatio="none"><path d="M0 3 Q12 6 24 3 T48 3 T72 3 T96 3 V6 H0Z"/></svg>
+        <span class="body"></span>
+      </span>
+      <span class="bubbles"><i></i><i></i><i></i><i></i></span>
+      <svg class="pring" viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/><circle class="fg" id="pomoRing" cx="18" cy="18" r="15"/></svg>
+      <span class="num"><svg viewBox="0 0 24 24" id="pomoIcon"></svg><span id="pomoNum">25</span></span>
+    </section>
+
+    <section class="cap group tray" id="w-tray" data-w="tray">
+      <button class="btn assist-btn" id="assistBtn" title="Ассистент"><img id="assistIcon" alt=""></button>
+      <span class="tray-pins" id="trayPins"></span>
+      <button class="btn chev" id="trayBtn" title="Скрытые значки"><svg viewBox="0 0 24 24"><path d="M6.5 14.5 12 9l5.5 5.5"/></svg></button>
+    </section>
+
+    <section class="cap clock" id="w-clock" data-w="clock">
+      <span class="col part" id="clockDate" title="Календарь">
+        <span class="dow" id="dow"></span>
+        <span class="big" id="date"></span>
+      </span>
+      <span class="col right part" id="clockRight" title="Погода">
+        <span class="big" id="time">--:--</span>
+        <span class="weather" id="weather"><svg viewBox="0 0 24 24" id="wicon"></svg><span id="wtemp"></span></span>
+      </span>
+    </section>
+  </nav>
+  <div class="drop-marker hidden" id="dropMarker"></div>
+  <script src="shared.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
