@@ -304,8 +304,26 @@ button:disabled { opacity: .5; cursor: default; }
 .city:hover { background: #202124; }
 .city .pick { color: var(--accent); font-size: 12px; }
 /* История версий */
-.release-card { padding: 20px; margin-top: 16px; }
-.release-card h2 { margin: 0 0 8px; font-size: 18px; }
 .release-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; font-size: 13px; }
-#weatherKey { min-width: 0; flex: 1; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--input); border: 1px solid #2c2d31; color: var(--text); font: inherit; outline: none; }
-#weatherKey:focus { border-color: var(--accent); }
+.updates-card { background: #1c1c1c; border-radius: 16px; }
+body.updates-page main { background: #111; }
+#page-updates { max-width: 532px; }
+.updates-card .row { padding: 13px 16px; min-height: 0; }
+.updates-card .row + .row { border-color: #292929; }
+.updates-card .name, .updates-card .desc, .updates-card button { font-size: 12px; }
+.updates-card .name { font-weight: 500; }
+.updates-card .desc { color: #85858c; margin-top: 3px; }
+.updates-card .updates-header { padding-top: 14px; padding-bottom: 12px; }
+.updates-card .switch input:checked + span { background: #8c9dff; border-color: #8c9dff; }
+.updates-controls { gap: 9px !important; }
+.updates-controls > button { align-self: flex-start; background: #2e2e2e; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 500; }
+.updates-history { gap: 10px !important; padding-top: 15px !important; padding-bottom: 14px !important; }
+#releaseHistory { display: flex; flex-direction: column; gap: 3px; }
+.release-entry summary { display: flex; align-items: center; gap: 9px; min-height: 26px; color: #bad9f1; font-size: 12px; cursor: pointer; list-style: none; }
+.release-entry summary::-webkit-details-marker { display: none; }
+.release-entry summary::before { content: '›'; color: #6e8396; transition: transform .12s; }
+.release-entry[open] summary::before { transform: rotate(90deg); }
+.release-entry summary:focus-visible, .updates-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+.release-entry .release-body { padding: 7px 0 12px 14px; color: #c9c9ce; font-size: 12px; }
+.updates-link { align-self: flex-start; color: #99a9ff; cursor: pointer; text-align: left; }
+.updates-link:hover { color: #bec7ff; text-decoration: underline; }

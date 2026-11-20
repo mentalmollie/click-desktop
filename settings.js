@@ -12,6 +12,7 @@ document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('clic
   document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.page').forEach((p) => p.classList.toggle('hidden', p.id !== 'page-' + b.dataset.page));
   $('main').scrollTop = 0;
+  document.body.classList.toggle('updates-page', b.dataset.page === 'updates');
   refreshPreview();
 }));
 
@@ -350,7 +351,6 @@ function renderAssistant() {
   const p = assistantOf(cfg);
   renderBrain();
   renderVoice();
-  renderSpotify();
   renderTypeSound();
   document.querySelectorAll('#asPersona button').forEach((b) => {
     b.classList.toggle('on', ASSISTANTS[b.dataset.v] === p);
@@ -360,7 +360,8 @@ function renderAssistant() {
   $('#asName').textContent = p.name;
   $('#asHint').textContent = `Сидит на панели, следит за происходящим и помогает. Нажмите на ${p.female ? 'неё' : 'него'}, чтобы спросить; правый клик — меню; перетащите, чтобы пересадить`;
   $('#asEnabled').checked = a.enabled;
-  $('#asSpeak').checked = a.speak;
+  $('#musicService').value = MusicServices.selected(cfg);
+  renderYandexMusic();
   document.querySelectorAll('#asSize button').forEach((b) => b.classList.toggle('on', b.dataset.v === a.size));
   document.querySelectorAll('#asMode button').forEach((b) => b.classList.toggle('on', b.dataset.v === (a.mode || 'sit')));
   document.querySelectorAll('#asTalk button').forEach((b) => b.classList.toggle('on', b.dataset.v === a.talk));
@@ -370,11 +371,12 @@ function renderAssistant() {
   for (const r of a.reminders) {
     const row = document.createElement('div');
     row.className = 'app-row';
+    if (r.kind === 'timer') row.dataset.timerId = r.id;
     const d = new Date(r.at);
     const when = d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const info = document.createElement('div');
     info.className = 'app-info';
-    info.append(Object.assign(document.createElement('div'), { className: 'name', textContent: r.text }),
+    info.append(Object.assign(document.createElement('div'), { className: 'name', textContent: r.kind === 'timer' ? 'Таймер' : r.text }),
       Object.assign(document.createElement('div'), { className: 'path', textContent: when }));
     const del = Object.assign(document.createElement('button'), { className: 'icon-btn', textContent: '✕', title: 'Удалить' });
     del.addEventListener('click', () => { a.reminders = a.reminders.filter((x) => x.id !== r.id); save(); renderAssistant(); });
@@ -496,73 +498,6 @@ $('#brReset').addEventListener('click', () => {
   setTimeout(() => { b.textContent = 'Забыть разговор'; }, 1500);
 });
 
-// ---------- Spotify ----------
-
-async function renderSpotify() {
-  const s = await dock.spotifyStatus();
-  $('#spRedirect').textContent = s.redirect;
-  if (document.activeElement !== $('#spClient')) $('#spClient').value = s.clientId;
-  const st = $('#spState');
-  st.classList.remove('key-bad');
-  st.classList.toggle('key-ok', s.loggedIn);
-  if (s.cli) {
-    // Есть spotify_cli из самого Spotify — включаем прямо в приложении, вход через браузер не нужен
-    st.classList.add('key-ok');
-    st.textContent = 'Подключено напрямую через приложение Spotify на этом ПК — вход не нужен. Скажите «включи Numb», «включи что-нибудь из Сплина», «включи альбом Meteora», «добавь в очередь …»';
-    $('#spLogin').classList.add('hidden');
-    $('#spLogout').classList.toggle('hidden', !s.loggedIn);
-    $('#spSetup').classList.add('hidden');
-    return;
-  }
-  if (s.loggedIn) {
-    st.textContent = `Подключено${s.user ? ': ' + s.user : ''}. Скажите «включи Numb», «включи что-нибудь из Сплина», «добавь в очередь …»` +
-      (s.premium === false ? '. Без Premium Spotify не даёт включать музыку программам — ассистент будет открывать найденное' : '');
-  } else if (s.logging) st.textContent = 'Подтвердите вход в открывшемся браузере…';
-  else if (!s.clientId) st.textContent = 'Ассистент находит песню, исполнителя, альбом или плейлист и сразу включает в вашем Spotify (нужен Premium). Сначала — настройка ниже';
-  else st.textContent = 'Client ID сохранён. Нажмите «Войти в Spotify»';
-  $('#spLogin').classList.toggle('hidden', s.loggedIn);
-  $('#spLogin').disabled = !s.clientId || s.logging;
-  $('#spLogout').classList.toggle('hidden', !s.loggedIn);
-  $('#spSetup').classList.toggle('hidden', s.loggedIn);
-}
-$('#spDash').addEventListener('click', (e) => { e.preventDefault(); dock.socialOpen('https://developer.spotify.com/dashboard'); });
-$('#spCopy').addEventListener('click', () => {
-  navigator.clipboard.writeText($('#spRedirect').textContent);
-  $('#spCopy').textContent = 'Скопировано';
-  setTimeout(() => { $('#spCopy').textContent = 'Копировать'; }, 1500);
-});
-$('#spSave').addEventListener('click', () => {
-  const id = $('#spClient').value.trim();
-  if (id && !/^[0-9a-f]{32}$/i.test(id)) {
-    const st = $('#spState');
-    st.classList.remove('key-ok'); st.classList.add('key-bad');
-    st.textContent = 'Client ID — это 32 символа из цифр и букв a–f. Скопируйте его со страницы приложения';
-    return;
-  }
-  cfg.spotify = { ...cfg.spotify, clientId: id };
-  save();
-  setTimeout(renderSpotify, 150);
-});
-$('#spClient').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#spSave').click(); });
-$('#spLogin').addEventListener('click', async () => {
-  $('#spLogin').disabled = true;
-  $('#spState').textContent = 'Подтвердите вход в открывшемся браузере…';
-  const r = await dock.spotifyLogin();
-  await renderSpotify();
-  if (!r.ok && r.error !== 'restarted') {
-    const st = $('#spState');
-    st.classList.add('key-bad');
-    st.textContent = {
-      timeout: 'Вход не подтверждён за 5 минут. Нажмите «Войти в Spotify» ещё раз',
-      access_denied: 'Вход отменён',
-      port: 'Порт 8971 занят другой программой — закройте её и попробуйте снова',
-      token: 'Spotify не принял вход: ' + (r.detail || '') + '. Проверьте Client ID и Redirect URI в приложении',
-      noclient: 'Сначала сохраните Client ID',
-    }[r.error] || ('Не получилось войти: ' + (r.detail || r.error));
-  }
-});
-$('#spLogout').addEventListener('click', async () => { await dock.spotifyLogout(); renderSpotify(); });
-
 // ---------- Голос ----------
 
 const vcCfg = () => (cfg.assistant.voice = { enabled: false, engine: 'groq', model: 'small', sensitivity: 0.5, ...cfg.assistant.voice });
@@ -677,7 +612,14 @@ document.querySelectorAll('#asTypeSound button').forEach((b) => b.addEventListen
 $('#asTypeVol').addEventListener('change', (e) => { cfg.assistant.typeVolume = +e.target.value; save(); typeSample(); });
 
 $('#asEnabled').addEventListener('change', (e) => { cfg.assistant.enabled = e.target.checked; save(); });
-$('#asSpeak').addEventListener('change', (e) => { cfg.assistant.speak = e.target.checked; save(); });
+$('#musicService').addEventListener('change', (e) => { cfg.assistant.musicService = e.target.value === 'yandex_music' ? 'yandex_music' : 'spotify'; save(); });
+async function renderYandexMusic() {
+  if (typeof dock.yandexMusicStatus !== 'function') return;
+  try {
+    const s = await dock.yandexMusicStatus();
+    $('#ymState').textContent = s.installed ? 'Приложение найдено. Команды открывают поиск в нём — нажми Play у нужного трека.' : 'Приложение не найдено. Установи Яндекс Музыку и попробуй снова.';
+  } catch { $('#ymState').textContent = 'Не удалось проверить приложение Яндекс Музыки.'; }
+}
 for (const [id, key] of [['#asSize', 'size'], ['#asTalk', 'talk'], ['#asMode', 'mode'], ['#asPersona', 'persona']]) {
   document.querySelectorAll(id + ' button').forEach((b) => b.addEventListener('click', () => { cfg.assistant[key] = b.dataset.v; save(); renderAssistant(); }));
 }
@@ -766,7 +708,7 @@ dock.onGoto((page) => { const b = document.querySelector(`#nav [data-page="${pag
 
 function renderCity() {
   const w = cfg.weather;
-  $('#curCity').textContent = `${w.city} · ${(+w.lat).toFixed(2)}, ${(+w.lon).toFixed(2)}`;
+  $('#curCity').textContent = [w.city, w.region].filter(Boolean).join(' · ');
 }
 
 $('#citySearch').addEventListener('submit', async (e) => {
@@ -777,8 +719,9 @@ $('#citySearch').addEventListener('submit', async (e) => {
   box.classList.remove('hidden');
   box.innerHTML = '<div class="city"><span class="desc">Ищу…</span></div>';
   try {
-    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=ru&format=json`;
-    const d = await (await fetch(url)).json();
+    const result = await dock.weatherSearch(q);
+    if (!result.ok) throw new Error(result.message);
+    const d = { results: result.items };
     box.innerHTML = '';
     if (!d.results || !d.results.length) {
       box.innerHTML = '<div class="city"><span class="desc">Ничего не найдено</span></div>';
@@ -789,9 +732,9 @@ $('#citySearch').addEventListener('submit', async (e) => {
       b.className = 'city';
       b.innerHTML = '<div><div class="name"></div><div class="desc"></div></div><span class="pick">Выбрать</span>';
       b.querySelector('.name').textContent = r.name;
-      b.querySelector('.desc').textContent = [r.admin1, r.country].filter(Boolean).join(', ');
+      b.querySelector('.desc').textContent = [r.region, r.country].filter(Boolean).join(', ');
       b.addEventListener('click', () => {
-        cfg.weather = { ...cfg.weather, city: r.name, lat: r.latitude, lon: r.longitude };
+        cfg.weather = { city: r.name, lat: r.lat, lon: r.lon, region: r.region };
         save();
         renderCity();
         box.classList.add('hidden');
@@ -799,8 +742,9 @@ $('#citySearch').addEventListener('submit', async (e) => {
       });
       box.appendChild(b);
     }
-  } catch {
-    box.innerHTML = '<div class="city"><span class="desc">Нет соединения с сервером погоды</span></div>';
+  } catch (error) {
+    box.replaceChildren();
+    const message = document.createElement('div'); message.className = 'city desc'; message.textContent = error.message || 'Нет соединения с Open-Meteo'; box.append(message);
   }
 });
 

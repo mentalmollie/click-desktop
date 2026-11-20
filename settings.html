@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data:; connect-src https://geocoding-api.open-meteo.com; style-src 'self' 'unsafe-inline'">
+        content="default-src 'self'; img-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'">
   <title>Click — настройки</title>
   <link rel="stylesheet" href="settings.css">
 </head>
@@ -27,7 +27,6 @@
       <hr>
       <button data-page="system"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8" class="dark"/><circle cx="15" cy="12" r="1.8" class="dark"/><circle cx="7" cy="17" r="1.8" class="dark"/></svg>Система</button>
       <button data-page="updates"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/></svg>Обновления</button>
-      <button data-page="whatsnew"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/></svg>Что нового</button>
     </nav>
     <div class="aside-foot">
       <div class="hint">Изменения сохраняются сразу</div>
@@ -158,11 +157,7 @@
           <div class="segmented" id="asTalk"><button data-v="quiet">Молчун</button><button data-v="normal">Обычно</button><button data-v="chatty">Болтун</button></div>
         </div>
         <div class="row">
-          <div class="txt"><div class="name">Говорить вслух</div><div class="desc">Озвучивать ответы голосом Windows</div></div>
-          <label class="switch"><input type="checkbox" id="asSpeak"><span></span></label>
-        </div>
-        <div class="row">
-          <div class="txt"><div class="name">Звук печати</div><div class="desc" id="asTypeDesc">Пока ответ появляется в облачке. Когда включено «Говорить вслух» — молчит, чтобы не мешать голосу</div></div>
+          <div class="txt"><div class="name">Звук печати</div><div class="desc" id="asTypeDesc">Пока текст ответа появляется в облачке</div></div>
           <div class="segmented" id="asTypeSound"><button data-v="typewriter">Машинка</button><button data-v="blip">Бип</button><button data-v="off">Выкл</button></div>
         </div>
         <div class="row" id="asTypeVolRow">
@@ -200,27 +195,10 @@
           <button class="ghost" id="brReset">Забыть разговор</button>
         </div>
       </div>
-      <div class="section-label">Spotify</div>
+      <div class="section-label">Музыкальные сервисы</div>
       <div class="card">
-        <div class="row">
-          <div class="txt"><div class="name">Музыка в Spotify</div><div class="desc" id="spState">Ассистент находит песню, исполнителя, альбом или плейлист и сразу включает в вашем Spotify (нужен Premium)</div></div>
-          <div class="key-field">
-            <button class="ghost" id="spLogin">Войти в Spotify</button>
-            <button class="ghost hidden" id="spLogout">Выйти</button>
-          </div>
-        </div>
-        <div class="row block" id="spSetup">
-          <div class="txt"><div class="name">Настройка (один раз, ~5 минут)</div>
-            <div class="desc sp-steps">
-              1. Откройте <a href="#" id="spDash">developer.spotify.com/dashboard</a> и войдите своим аккаунтом Spotify.<br>
-              2. Нажмите «Create app». Название и описание — любые, например Click.<br>
-              3. В «Redirect URIs» вставьте адрес ниже и нажмите «Add». В «Which API/SDKs» отметьте «Web API». Сохраните.<br>
-              4. Откройте созданное приложение → Settings, скопируйте «Client ID» и вставьте сюда. Потом — «Войти в Spotify».
-            </div>
-          </div>
-          <div class="sp-uri"><code id="spRedirect"></code><button class="ghost" id="spCopy">Копировать</button></div>
-          <div class="key-field"><input type="text" id="spClient" placeholder="Client ID (32 символа)" spellcheck="false" autocomplete="off"><button class="ghost" id="spSave">Сохранить</button></div>
-        </div>
+        <div class="row"><div class="txt"><div class="name">Сервис по умолчанию</div><div class="desc">Для команд «включи песню …» и «включи …». Можно назвать другой сервис в самой команде.</div></div><div class="model-pick"><select id="musicService"><option value="spotify">Spotify</option><option value="yandex_music">Яндекс Музыка</option></select></div></div>
+        <div class="row"><div class="txt"><div class="name">Яндекс Музыка</div><div class="desc" id="ymState" role="status">Команды открывают установленное приложение и поиск в нём. Нажми Play у нужного трека. Пауза, следующий трек и громкость работают через медиаклавиши Windows.</div></div></div>
       </div>
       <div class="section-label">Голос</div>
       <div class="card">
@@ -256,9 +234,10 @@
           <div class="range"><input type="range" id="vcSens" min="0" max="1" step="0.05"></div>
         </div>
       </div>
-      <div class="section-label">Напоминания</div>
+      <div class="section-label">Таймеры и напоминания</div>
       <div class="card"><div class="row block"><div class="app-list" id="asReminders"></div></div></div>
-      <p class="note">Без ключа ассистент понимает только команды: «открой …», «напомни через 10 минут …», «добавь задачу …», «погода», «сводка», «громче», «пауза», «помодоро». Кнопки под строкой вопроса всегда работают без «мозга».</p>
+      <div class="card"><div class="row"><div class="txt"><div class="name">Выключение компьютера</div><div class="desc" id="asShutdownState" role="status">Не запланировано</div></div><button id="asShutdownCancel" class="ghost hidden">Отменить выключение</button></div></div>
+      <p class="note">Скажи имя выбранного персонажа и команду: «открой YouTube», «открой погоду», «найди на Ютубе песню Бандана», «поставь таймер на пять минут», «сколько осталось», «отмени таймер», «выключи компьютер через десять минут». Выключение требует подтверждения и отменяется при выходе из Click. Для свободного разговора подключи нейросеть выше.</p>
     </section>
 
     <!-- Соцсети -->
@@ -308,11 +287,10 @@
         </div>
       </div>
       <div class="card">
-        <div class="row"><div class="txt"><div class="name">Яндекс Погода</div><div class="desc" id="weatherKeyState" role="status">Проверяем подключение…</div></div><button id="weatherPortal">Получить ключ</button></div>
-        <div class="row block"><label class="name" for="weatherKey">API-ключ</label><div class="actions"><input type="password" id="weatherKey" placeholder="Ключ Яндекс Погоды" autocomplete="off" spellcheck="false"><button id="weatherKeySave">Сохранить</button><button id="weatherKeyDelete" class="hidden">Удалить</button></div></div>
-        <div class="row"><div class="txt"><div class="desc" id="weatherConnection" role="status">Ключ хранится зашифрованным только на этом компьютере.</div></div><button id="weatherTest">Проверить</button></div>
+        <div class="row"><div class="txt"><div class="name">Open-Meteo</div><div class="desc">Работает без регистрации и API-ключа</div></div><button class="ghost" id="weatherWebsite">Открыть сайт</button></div>
+        <div class="row"><div class="txt"><div class="desc" id="weatherConnection" role="status">Погода загружается автоматически для выбранного города.</div></div><button class="ghost" id="weatherTest">Проверить</button></div>
       </div>
-      <p class="note">Прогноз, температура и ответы ассистента — по данным Яндекс Погоды. После подключения ключа клик по погоде в доке открывает прогноз. Поиск города использует геокодирование Open-Meteo.</p>
+      <p class="note">Температура на панели, почасовой прогноз, прогноз по дням и ответы ассистента — по данным Open-Meteo.</p>
     </section>
 
     <!-- Помодоро -->
@@ -358,39 +336,41 @@
       </div>
     </section>
     <section class="page hidden" id="page-updates">
-      <h1>Обновления Click</h1>
-      <div class="card">
-        <div class="row">
-          <div class="txt"><div class="name">Установленная версия</div><div class="desc" id="updateCurrentVersion">Загрузка…</div></div>
-          <button class="ghost" id="updateCheck">Проверить обновления</button>
+      <h1>Обновления</h1>
+      <div class="card updates-card">
+        <div class="row updates-header">
+          <div class="txt"><div class="name" id="updateCurrentVersion">Версия…</div><div class="desc" id="updateAutoDescription">Проверять новые версии при запуске и раз в 6 часов</div></div>
+          <label class="switch"><input type="checkbox" id="updateAutoCheck" aria-label="Автоматически проверять обновления" aria-describedby="updateAutoDescription" disabled><span></span></label>
         </div>
-        <div class="row block">
-          <div class="name" id="updateMessage" role="status" aria-live="polite">Проверьте, доступна ли новая версия Click.</div>
+        <div class="row block updates-controls">
+          <button class="ghost" id="updateCheck">Проверить сейчас</button>
+          <div class="desc hidden" id="updateMessage" role="status" aria-live="polite"></div>
           <div class="hidden" id="updateProgressWrap">
             <progress id="updateProgress" max="100" value="0" aria-label="Скачивание обновления"></progress>
             <div class="desc" id="updateProgressText"></div>
           </div>
-          <div class="actions">
+          <div class="actions hidden" id="updateActions">
             <button class="primary hidden" id="updateDownload">Скачать обновление</button>
             <button class="primary hidden" id="updateInstall">Установить обновление</button>
             <button class="hidden" id="updateCancel">Отменить скачивание</button>
           </div>
           <div class="desc hidden" id="updateNotes"></div>
         </div>
+        <div class="row block updates-history">
+          <div class="name">Что нового</div>
+          <div class="desc hidden" id="releaseHistoryStatus" role="status"></div>
+          <div id="releaseHistory"></div>
+          <button class="updates-link" id="updateReleases">Все версии — на GitHub</button>
+        </div>
       </div>
-      <p class="note">Новые версии скачиваются из GitHub Releases прямо здесь. При установке Click закроется. Ваши настройки и данные сохранятся.</p>
-      <div class="card"><div class="row">
-        <div class="txt"><div class="name">Сайт Click</div><div class="desc">Скачать приложение и посмотреть, что нового</div></div>
-        <button class="ghost" id="updateWebsite">Открыть сайт</button>
-      </div></div>
-      <div class="card"><div class="row"><div class="txt"><div class="name">Click на GitHub</div><div class="desc">Исходники, версии и сообщения об ошибках</div></div><button id="updateGithub">Открыть GitHub</button></div></div>
     </section>
-    <section class="page hidden" id="page-whatsnew"><h1>Что нового</h1><p class="note" id="releaseHistoryStatus" role="status">Загружаем историю версий…</p><button id="releaseHistoryRefresh">Обновить список</button><div id="releaseHistory"></div></section>
   </main>
   <script src="shared.js"></script>
   <script src="typesound.js"></script>
+  <script src="music-service.js"></script>
   <script src="settings.js"></script>
   <script src="settings-updates.js"></script>
   <script src="settings-weather.js"></script>
+  <script src="settings-assistant-jobs.js"></script>
 </body>
 </html>

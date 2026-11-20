@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data:; connect-src https://lrclib.net https://api.open-meteo.com; style-src 'self' 'unsafe-inline'">
+        content="default-src 'self'; img-src 'self' data:; connect-src https://lrclib.net; style-src 'self' 'unsafe-inline'">
   <title>Click Panel</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="panel.css">
@@ -67,8 +67,8 @@
     <div class="w-hours" id="wHours"></div>
     <div class="w-label">На неделю</div>
     <div class="w-days" id="wDays"></div>
-    <button class="link" id="weatherSource">Яндекс Погода ↗</button>
-    <button class="link" id="weatherSettings">Подключение погоды</button>
+    <button class="link" id="weatherSource">Данные Open-Meteo</button>
+    <button class="link" id="weatherSettings">Выбрать город</button>
   </section>
   <section id="system" class="hidden">
     <div class="p-head"><div><div class="p-h">Система</div><div class="p-sub" id="sysModel"></div></div><button class="link" id="sysTaskmgr">Диспетчер задач</button></div>
@@ -91,7 +91,7 @@
   <section id="tray" class="hidden">
     <div class="p-head"><div class="p-h">Скрытые значки</div><button class="link" id="trayRefresh">Обновить</button></div>
     <div class="tray-grid" id="trayGrid"><div class="l-msg">Загружаю…</div></div>
-    <div class="p-note">Наведите — название, клик — открыть, правый клик — меню и закрепление на панели</div>
+    <div class="p-note" id="trayStatus" role="status">Обновляется автоматически. Правый клик — меню, закрепление и завершение задачи.</div>
     <div class="quick">
       <button data-q="quicksettings" title="Win+A"><svg viewBox="0 0 24 24"><path d="M3 9.5a13 13 0 0 1 18 0M6 13a8.5 8.5 0 0 1 12 0M9 16.5a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" class="solid"/></svg>Звук и сеть</button>
       <button data-q="notifications" title="Win+N"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5h4"/></svg>Уведомления</button>

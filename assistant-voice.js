@@ -5,7 +5,7 @@
 //  2. Фраза → распознавание в главном процессе (Groq Whisper или whisper.cpp на этом ПК).
 //  3. Если в тексте есть имя — остальное выполняется как вопрос/команда (через «мозг» или прежние команды).
 //     Одно имя без команды — «Да?», и следующая фраза в течение 8 секунд считается командой без имени.
-// Пока ассистент говорит вслух или думает, микрофон не слушаем — чтобы не услышать самого себя.
+// Пока ассистент выполняет команду или думает, следующую фразу не обрабатываем.
 // Работает в окне ассистента рядом с assistant.js и пользуется его функциями (react, say, askBrain, run).
 
 const VOICE_SR = 16000;
@@ -56,7 +56,7 @@ function mergeName(words) {
 }
 function findName(words) {
   const at = [0, 1, words.length - 1];
-  for (const i of at) if (i >= 0 && i < words.length && isName(words[i]) && (i !== 1 || /^(эй|слушай|алло|ну)$/.test(words[0]))) return i;
+  for (const i of at) if (i >= 0 && i < words.length && isName(words[i]) && (i !== 1 || /^(а|эй|слушай|алло|ну)$/.test(words[0]))) return i;
   return -1;
 }
 const HEARD = {
@@ -136,8 +136,8 @@ function stopMic() {
   setMicClass();
 }
 
-// Сейчас не слушаем: говорит сам, думает, распознаёт прошлую фразу, человек давно отошёл
-const deaf = () => transcribing || thinking || speechSynthesis.speaking || idleSec > 600;
+// Сейчас не слушаем: выполняет команду, думает или распознаёт прошлую фразу.
+const deaf = () => transcribing || voiceCommandBusy || thinking;
 
 function onFrame(f) {
   let sum = 0;
@@ -290,15 +290,20 @@ function cleanCase(text, name, atEnd) {
   const t = text.replace(/ё/g, 'е').trim();
   const re = atEnd
     ? new RegExp('[\\s,—-]*' + n + '[\\s,.!?]*$', 'i')
-    : new RegExp('^\\s*((эй|слушай|алло|ну)[\\s,]+)?' + n + '[\\s,.!?—-]*', 'i');
+    : new RegExp('^\\s*((а|эй|слушай|алло|ну)[\\s,]+)?' + n + '[\\s,.!?—-]*', 'i');
   return t.replace(re, '').replace(/^[\s,.!?—-]+|[\s,—-]+$/g, '').trim() || t;
 }
 
 async function voiceCommand(cmd) {
+  if (thinking || voiceCommandBusy) return;
   vlog({ command: cmd });
-  await refreshBrain();
-  if (brainReady()) askBrain(cmd);
-  else run(cmd);
+  voiceCommandBusy = true;
+  try {
+    await refreshBrain();
+    if (brainReady()) await askBrain(cmd);
+    else await run(cmd);
+  } catch { react('worry', 'Не удалось выполнить команду. Попробуй ещё раз.', { important: true }); }
+  finally { voiceCommandBusy = false; }
 }
 
 async function applyVoice() {

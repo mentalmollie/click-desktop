@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { safeStorage } = require('electron');
+const MusicServices = require('./music-service');
 
 const { dataPath } = require('./paths');
 const keyPath = (provider) => dataPath(`brain-${provider}.key`);
@@ -53,7 +54,7 @@ const common = (search) => `
 ${search
     ? '- Не выдумывай факты о погоде, новостях и ценах: для этого есть инструменты get_weather и web_search.'
     : '- Погоду узнавай инструментом get_weather. Сам читать интернет ты не можешь: про свежие новости и цены не выдумывай. Если просят что-то найти в интернете — открой поиск в браузере инструментом search_in_browser.'}
-- Музыку, видео, сайты, папки, Wi-Fi, Bluetooth и параметры Windows включай и открывай инструментами (play_media, queue_song, playback_mode, add_to_playlist, open_website, open_folder, toggle_radio, open_settings). Музыку — в Spotify, видео — на YouTube. \
+- Музыку, видео, сайты, папки, Wi-Fi, Bluetooth и параметры Windows включай и открывай инструментами (play_media, queue_song, playback_mode, add_to_playlist, open_website, open_folder, toggle_radio, open_settings). Музыку — в сервисе пользователя из блока «Сейчас», видео — на YouTube. \
 Не говори «открываю» или «включаю», если не вызвал инструмент.
 - Ты персонаж, а не копия героя сериала: характер похож, но реплики — свои, без цитат из «Менталиста».
 - Не утверждай, что видишь экран, файлы или переписку: ты знаешь только то, что в блоке «Сейчас» и в разговоре.`;
@@ -74,6 +75,15 @@ const systemPrompt = (persona, search) => (CHARACTERS[persona] || CHARACTERS.pat
 
 const obj = (props, required) => ({ type: 'object', properties: props, required: required || Object.keys(props), additionalProperties: false });
 const TOOLS = [
+  { name: 'open_music', strict: true, description: 'Открыть установленное приложение музыкального сервиса. Яндекс Музыка открывается через штатную ссылку приложения.', input_schema: obj({ service: { type: 'string', enum: ['spotify', 'yandex_music'] } }) },
+  { name: 'start_timer', strict: true, description: 'Поставить обычный таймер на указанное количество секунд, от 1 секунды до 24 часов. Это не помодоро.', input_schema: obj({ seconds: { type: 'integer' } }) },
+  { name: 'list_timers', strict: true, description: 'Узнать, сколько осталось до завершения активных таймеров.', input_schema: obj({}) },
+  { name: 'cancel_timer', strict: true, description: 'Отменить таймер. all=true только если человек просит отменить все таймеры.', input_schema: obj({ all: { type: 'boolean' } }) },
+  { name: 'schedule_shutdown', strict: true, description: 'Запланировать выключение компьютера только по явной просьбе пользователя. seconds — задержка в секундах (0 — сейчас). Приложение само показывает подтверждение; не утверждай, что компьютер выключается, пока инструмент этого не подтвердил.', input_schema: obj({ seconds: { type: 'integer' } }) },
+  { name: 'cancel_shutdown', strict: true, description: 'Отменить запланированное в Click выключение компьютера.', input_schema: obj({}) },
+  { name: 'shutdown_status', strict: true, description: 'Проверить, запланировано ли выключение компьютера и сколько осталось.', input_schema: obj({}) },
+  { name: 'open_weather', strict: true, description: 'Открыть карточку прогноза погоды в Click, когда человек просит открыть или показать погоду.', input_schema: obj({}) },
+  { name: 'search_youtube', strict: true, description: 'Открыть результаты поиска на YouTube по запросу, когда просят найти на Ютубе песню или видео.', input_schema: obj({ query: { type: 'string' } }) },
   {
     name: 'open_app', strict: true,
     description: 'Открыть программу из меню «Пуск» по названию (например: Telegram, Chrome, Блокнот, Параметры). Возвращает точное название открытой программы или сообщение, что такой нет.',
@@ -117,10 +127,10 @@ const TOOLS = [
   },
   {
     name: 'play_media', strict: true,
-    description: 'Включить песню, исполнителя, альбом, плейлист или видео. service: spotify — для любой музыки (песни, исполнители, альбомы, плейлисты), выбирай его по умолчанию; youtube — для видео, клипов, роликов, подкастов, блогеров или если человек сказал «на ютубе»; yandex_music, youtube_music — только если человек прямо назвал этот сервис. kind (для spotify): track — конкретная песня; artist — «что-нибудь из …», «включи Сплин»; album — альбом; playlist — плейлист, жанр или настроение («музыку для работы», «что-нибудь спокойное», «рок»); liked — «мои любимые/лайкнутые треки». Если человек называет свой плейлист (они перечислены в блоке «Сейчас»), передай его название как query и kind playlist.',
+    description: 'Открыть музыку или видео. service: default — музыкальный сервис пользователя из настроек; spotify, yandex_music, youtube_music — когда сервис назван прямо; youtube — для видео или если сказано «на ютубе». Яндекс Музыка открывает поиск в установленном приложении, пользователь нажимает Play; не утверждай, что трек уже играет. kind: track — песня, artist — исполнитель, album — альбом, playlist — плейлист, liked — любимые треки.',
     input_schema: obj({
       query: { type: 'string', description: 'Ровно то, что попросил человек, вместе с исполнителем: «Linkin Park Numb», «Сплин», «музыка для работы», «новое видео Wylsacom». Не подставляй то, что играет сейчас.' },
-      service: { type: 'string', enum: ['spotify', 'youtube', 'yandex_music', 'youtube_music'] },
+      service: { type: 'string', enum: ['default', 'spotify', 'youtube', 'yandex_music', 'youtube_music'] },
       kind: { type: 'string', enum: ['track', 'artist', 'album', 'playlist', 'liked'] },
     }),
   },
@@ -176,6 +186,7 @@ const TOOLS = [
 // ---------- Мозг ----------
 
 function createBrain(dock) {
+  let requestedMusicService = 'spotify', explicitMusicService = null;
   const histories = {};   // персонаж+модель → сообщения
 
   const brainCfg = () => dock.config().assistant.brain || {};
@@ -229,6 +240,7 @@ function createBrain(dock) {
     const iso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const lines = [`Сейчас: ${now.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${pad(now.getHours())}:${pad(now.getMinutes())} (${iso}, ${Intl.DateTimeFormat().resolvedOptions().timeZone}).`];
     lines.push(`Город для погоды: ${cfg.weather.city}.`);
+    lines.push(`Музыкальный сервис по умолчанию: ${MusicServices.selected(cfg) === 'yandex_music' ? 'Яндекс Музыка (установленное приложение; открыть поиск в нём, затем человек нажимает Play)' : 'Spotify'}. Ответы ассистента выводятся текстом.`);
     const m = dock.media();
     if (m && m.active) lines.push(`Музыка: ${m.playing ? 'играет' : 'на паузе'} «${m.title || '?'}»${m.artist ? ' — ' + m.artist : ''}.`);
     else lines.push('Музыка: ничего не играет.');
@@ -244,6 +256,10 @@ function createBrain(dock) {
   }
 
   async function runTool(name, input) {
+    if (name === 'play_media') {
+      const service = !explicitMusicService && ['youtube', 'youtube_music'].includes(input.service) ? input.service : requestedMusicService;
+      input = { ...input, service };
+    } else if (['queue_song', 'playback_mode', 'add_to_playlist'].includes(name)) input = { ...input, service: requestedMusicService };
     switch (name) {
       case 'open_app': {
         const n = await dock.openApp(String(input.name || ''));
@@ -283,6 +299,7 @@ function createBrain(dock) {
         return dock.deleteReminder(String(input.id)) ? 'Удалено.' : 'Нет напоминания с таким id.';
       case 'get_weather': return (await dock.weather()) || 'Сервис погоды не ответил.';
       // Музыка и видео, сайты, Wi-Fi/Bluetooth, параметры Windows, папки — общие с прежними командами (main.js)
+      case 'open_music': case 'start_timer': case 'list_timers': case 'cancel_timer': case 'schedule_shutdown': case 'cancel_shutdown': case 'shutdown_status': case 'open_weather': case 'search_youtube':
       case 'play_media': case 'queue_song': case 'playback_mode': case 'add_to_playlist': case 'open_website': case 'search_in_browser': case 'toggle_radio': case 'open_settings': case 'open_folder':
         return (await dock.act(name, input)).text;
       default: return `Неизвестный инструмент ${name}.`;
@@ -310,6 +327,8 @@ function createBrain(dock) {
   }
 
   async function askNow(persona, text) {
+    explicitMusicService = MusicServices.explicit(text);
+    requestedMusicService = MusicServices.forText(text, dock.config());
     const key = histKey(persona);
     const hist = histories[key] || (histories[key] = []);
     if (hist.length > MAX_HISTORY) hist.length = 0;
@@ -388,7 +407,7 @@ function createBrain(dock) {
     if (/queue/.test(n)) return { name: 'queue_song', args: { query: String(q) } };
     if (/(play|music|song|track|spotify|playlist|album|artist)/.test(n) && q) {
       const kind = /playlist/.test(n) || args.playlist ? 'playlist' : /album/.test(n) || args.album ? 'album' : /artist/.test(n) || (args.artist && !args.song && !args.track) ? 'artist' : 'track';
-      return { name: 'play_media', args: { query: String(q), service: /(youtube|video)/.test(n) ? 'youtube' : 'spotify', kind } };
+      return { name: 'play_media', args: { query: String(q), service: /(youtube|video)/.test(n) ? 'youtube' : requestedMusicService, kind } };
     }
     if (/(url|site|web|browser)/.test(n) && q) return /^https?:|\./.test(q) ? { name: 'open_website', args: { url: String(q) } } : { name: 'search_in_browser', args: { query: String(q), engine: 'yandex' } };
     if (/(folder|directory|explorer)/.test(n) && q) return { name: 'open_folder', args: { folder: String(q) } };
@@ -495,7 +514,7 @@ function createBrain(dock) {
       if (pm && !/^(музыку|музыка|звук|громче|погромче|тише|потише|паузу|следующ|дальше|предыдущ|назад|вайфай|вай-фай|wi-?fi|блютуз|bluetooth|ночной|свет|таймер|помодоро|режим|перемешив|повтор|случайн)/i.test(pm[1])) {
         const video = /(видео|клип|ролик|ютуб|youtube)/i.test(pm[1]);
         const query = pm[1].replace(/^(?:песню|трек|видео|клип|ролик)\s+/i, '').replace(/\s*(вперемешку|в случайном порядке)\s*$/i, '');
-        let out = await runTool('play_media', { query, service: video ? 'youtube' : 'spotify', kind: /(любим|лайкнут)/i.test(pm[1]) ? 'liked' : 'track' });
+        let out = await runTool('play_media', { query, service: video ? 'youtube' : requestedMusicService, kind: /(любим|лайкнут)/i.test(pm[1]) ? 'liked' : 'track' });
         if (shuffleAsked && !video) out += ' ' + (await runTool('playback_mode', { shuffle: 'on', repeat: 'keep' }));
         hist.push({ role: 'assistant', content: out });
         return { text: out, emotion: 'joy' };

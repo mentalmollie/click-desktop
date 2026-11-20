@@ -1,0 +1,35 @@
+name: Publish tested installer
+on:
+  push:
+    branches: [main]
+    paths: [release-artifact.json]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: click-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Download and verify the tested installer
+        run: node tools/prepare-release-asset.js
+      - name: Publish release with installer and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./release-artifact.json').version")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release already exists; preserving its assets."
+            exit 0
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "Click $version" --notes-file release-assets/release-notes.md --draft "release-assets/Click-Setup-$version.exe" release-assets/SHA256SUMS.txt
+          gh release edit "$tag" --draft=false --latest

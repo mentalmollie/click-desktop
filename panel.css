@@ -198,6 +198,7 @@ footer { margin-top: auto; color: var(--muted); font-size: 12px; padding-top: 8p
 .tray-grid button { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 2px; border-radius: 12px; }
 .tray-grid button:hover { background: var(--hover); }
 .tray-grid img { width: var(--ico); height: var(--ico); }
+.tray-grid span.tray-fallback { display: grid; place-items: center; width: var(--ico); height: var(--ico); padding: 0; border-radius: 6px; background: var(--cap-bg); color: #fff; font-size: calc(var(--ico) * .6); font-weight: 600; }
 .tray-grid span { font-size: 10.5px; color: rgba(255, 255, 255, .8); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
 .tray-grid .pin-dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .75); margin-top: -2px; }
 .tray-grid::-webkit-scrollbar { width: 0; }

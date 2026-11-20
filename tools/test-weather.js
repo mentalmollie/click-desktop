@@ -1,50 +1,44 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const vm = require('node:vm');
-const { createWeather, normalizeWeather } = require('../weather');
-const day = { time: '2026-11-19T00:00:00+03:00', summary: { day: { minTemperature: -3, maxTemperature: 2, condition: 'SNOW' } }, hours: [
-  { time: '2026-11-19T12:00:00+03:00', temperature: 1, condition: 'SNOW', icon: 'sn_d' }] };
-const raw = { data: { weatherByPoint: { now: { temperature: 0, condition: 'SNOW', daytime: 'DAY', humidity: 80, windSpeed: 18 }, forecast: { days: [day] } } } };
+const { createWeather, normalizeWeather, weatherUrl } = require('../weather');
+const epoch = (s) => Date.parse(s) / 1000;
+const raw = { timezone: 'Asia/Novosibirsk', current: { time: epoch('2026-11-19T00:00:00Z'), temperature_2m: 0, apparent_temperature: -4, weather_code: 73, is_day: 0, relative_humidity_2m: 80, wind_speed_10m: 18 },
+  hourly: { time: [epoch('2026-11-19T00:00:00Z'), epoch('2026-11-19T01:00:00Z')], temperature_2m: [0, 1], weather_code: [73, 3], is_day: [0, 1] },
+  daily: { time: [epoch('2026-11-18T17:00:00Z')], temperature_2m_min: [-5], temperature_2m_max: [1], weather_code: [73] } };
 (async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'click-weather-test-'));
-  try {
-    let requests = 0, mode = 'normal', time = 0;
-    const cfg = { lat: 55.75, lon: 37.62 };
-    const keyPath = path.join(dir, 'weather.key');
-    const safeStorage = { isEncryptionAvailable: () => true, encryptString: (s) => Buffer.from(s).map((b) => b ^ 42), decryptString: (b) => b.map((v) => v ^ 42).toString() };
-    const service = createWeather({ keyPath, safeStorage, config: () => cfg, now: () => time, fetchImpl: async (url, opts) => {
-      requests++;
-      assert.equal(url, 'https://api.weather.yandex.ru/graphql/query');
-      assert.equal(opts.redirect, 'error');
-      assert.equal(opts.headers['X-Yandex-Weather-Key'], 'test-dummy-key');
-      assert.equal(JSON.parse(opts.body).variables.point.lat, cfg.lat);
-      if (mode === 'denied') return new Response('', { status: 403 });
-      if (mode === 'offline') throw new Error('fetch failed');
-      return new Response(JSON.stringify(mode === 'graphql' ? { errors: [{ message: 'denied' }] } : raw));
-    } });
-    await assert.rejects(service.get(), /API-ключ/); assert.equal(requests, 0);
-    service.setKey('test-dummy-key'); assert.equal(service.status().hasKey, true);
-    assert.ok(!fs.readFileSync(keyPath).includes(Buffer.from('test-dummy-key')));
-    const [a, b] = await Promise.all([service.get(), service.get()]);
-    assert.equal(requests, 1); assert.deepEqual(a, b);
-    assert.equal(a.current.temperature_2m, 0); assert.equal(a.current.apparent_temperature, null);
-    assert.equal(a.daily.temperature_2m_min[0], -3); assert.equal(a.hourly.is_day[0], 1);
-    await service.get(); assert.equal(requests, 1);
-    cfg.lat = 59.93; await service.get(); assert.equal(requests, 2);
-    time += 16 * 60 * 1000; mode = 'denied'; await assert.rejects(service.get(), /ключ и тариф/);
-    mode = 'graphql'; await assert.rejects(service.get(), /доступные данные/);
-    mode = 'offline'; await assert.rejects(service.get(), /Нет связи/);
-    service.setKey(''); await assert.rejects(service.get(), /API-ключ/);
-    assert.equal(service.status().hasKey, false);
-    assert.throws(() => normalizeWeather({}), /неполные/);
-    const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
-    const start = main.indexOf('function removeLegacyIntegrations('), end = main.indexOf('\nconst weather =', start);
-    const cfgOld = { widgets: { island: true, clock: true }, island: { path: 'legacy' }, widgetOpts: { island: {}, clock: {} }, widgetOrder: ['island', 'clock'], layoutZones: { island: 'R', clock: 'R' }, assistant: { brain: { provider: 'anthropic', model: 'legacy', models: { groq: 'keep', anthropic: 'remove' } } } };
-    vm.runInNewContext(main.slice(start, end) + '\nremoveLegacyIntegrations(cfg);', { cfg: cfgOld });
-    assert.equal(cfgOld.assistant.brain.provider, 'gemini'); assert.equal(cfgOld.assistant.brain.models.groq, 'keep');
-    assert.deepEqual(cfgOld.widgetOrder, ['clock']); assert.equal(cfgOld.island, undefined); assert.equal(cfgOld.widgets.clock, true);
-    console.log('PASS: encrypted weather key, missing key, cache/concurrency, city changes, Yandex data mapping and errors, legacy config migration.');
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  let cfg = { lat: 55.02, lon: 82.93 }, requests = 0, time = 0, mode = 'ok', lastUrl;
+  const service = createWeather({ config: () => cfg, now: () => time, fetchImpl: async (url, opts) => {
+    requests++; lastUrl = new URL(url);
+    assert.ok(['https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com'].includes(lastUrl.origin));
+    assert.deepEqual(opts.headers, { Accept: 'application/json' }); assert.equal(opts.redirect, 'error');
+    assert.equal(lastUrl.searchParams.has('apikey'), false);
+    if (mode === 'offline') throw new Error('offline');
+    if (mode === 'limit') return new Response('', { status: 429 });
+    if (mode === 'html') return new Response('<html>error</html>');
+    if (mode === 'error') return new Response(JSON.stringify({ error: true, reason: 'bad' }));
+    if (lastUrl.pathname.includes('search')) return new Response(JSON.stringify({ results: mode === 'empty' ? [] : [
+      { name: 'Новосибирск', latitude: 55.02, longitude: 82.93, admin1: 'Новосибирская область', country: 'Россия' },
+      { name: 'Invalid', latitude: 999, longitude: 82.93 }] }));
+    return new Response(JSON.stringify(raw));
+  } });
+  assert.equal(service.status().requiresKey, false);
+  const [a, b] = await Promise.all([service.get(), service.get()]); assert.equal(requests, 1); assert.deepEqual(a, b);
+  assert.equal(a.current.temperature_2m, 0); assert.equal(a.current.apparent_temperature, -4); assert.equal(a.source, 'Open-Meteo');
+  assert.equal(a.hourly.time[0], '2026-11-19T07:00:00+07:00'); assert.equal(a.daily.time[0], '2026-11-19'); assert.equal(a.hourlyStep, 1);
+  await service.get(); assert.equal(requests, 1); await service.get(true); assert.equal(requests, 2);
+  time += 16 * 60 * 1000; await service.get(); assert.equal(requests, 3);
+  cfg = { lat: 55.75, lon: 37.62 }; await service.get(); assert.equal(requests, 4);
+  assert.equal((await service.search('Новосибирск')).length, 1); assert.equal(lastUrl.searchParams.get('language'), 'ru');
+  cfg = { city: 'Новосибирск', region: 'Новосибирская область', gismeteoId: 4690, lat: 55.75, lon: 37.62 };
+  await service.get(); assert.equal(lastUrl.searchParams.get('longitude'), '82.93', 'resolve old Gismeteo city instead of using stale Moscow coordinates');
+  mode = 'offline'; await assert.rejects(service.get(true), /Нет связи/);
+  mode = 'limit'; await assert.rejects(service.get(true), /лимит/);
+  mode = 'html'; await assert.rejects(service.get(true), /неверный ответ/);
+  mode = 'error'; await assert.rejects(service.get(true), /обработать запрос/);
+  cfg = { city: 'Неизвестный город', gismeteoId: 123 }; mode = 'empty'; await assert.rejects(service.get(), /Выберите город заново/);
+  assert.throws(() => weatherUrl({ lat: 99, lon: 30 }), /Выберите город/);
+  assert.throws(() => normalizeWeather({ ...raw, current: { ...raw.current, temperature_2m: null } }), /неполные/);
+  assert.throws(() => normalizeWeather({ ...raw, hourly: {} }), /не предоставил/);
+  const summer = normalizeWeather({ ...raw, timezone: 'Europe/London', hourly: { ...raw.hourly, time: [epoch('2026-10-25T00:00:00Z'), epoch('2026-10-25T01:00:00Z')] } });
+  assert.equal(summer.hourly.time[0], '2026-10-25T01:00:00+01:00'); assert.equal(summer.hourly.time[1], '2026-10-25T01:00:00+00:00');
+  console.log('PASS: Open-Meteo without keys, current/hourly/daily weather, local dates and DST, cache/manual refresh, city search, Gismeteo city migration and network errors.');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

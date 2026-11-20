@@ -174,6 +174,7 @@ const fill = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => (v[k] != null ? v[k] : 
 let hideTimer = null;
 let typeTimer = null;
 let typingUntil = 0;
+let voiceCommandBusy = false;
 const talk = () => (cfg ? cfg.assistant.talk : 'normal');
 const muted = () => cfg && cfg.assistant.muteUntil > Date.now();
 
@@ -187,11 +188,11 @@ function say(text, { ms, important = false } = {}) {
   // Печатает буква за буквой — как будто говорит
   t.textContent = '';
   let i = 0;
-  // Пока текст печатается — шевелит губами (см. render) и стучит «машинка» (если не говорит вслух)
+  // Пока текст печатается — шевелит губами (см. render) и стучит «машинка».
   const typeMs = Math.ceil(text.length / 2) * 18;
   typingUntil = Date.now() + typeMs + 150;
   const snd = cfg && cfg.assistant;
-  if (snd && !snd.speak && (snd.typeSound || 'typewriter') !== 'off') {
+  if (snd && (snd.typeSound || 'typewriter') !== 'off') {
     TypeSound.play(typeMs, { kind: snd.typeSound || 'typewriter', volume: snd.typeVolume ?? 0.4, pitch: PERSONA.female ? 'high' : 'low' });
   }
   typeTimer = setInterval(() => {
@@ -201,21 +202,6 @@ function say(text, { ms, important = false } = {}) {
   }, 18);
   const dur = ms || Math.min(14000, Math.max(4000, text.length * 65));
   hideTimer = setTimeout(() => { if (!asking) box.classList.add('hidden'); t.textContent = ''; }, dur);
-  if (cfg && cfg.assistant.speak) speak(text);
-}
-
-function speak(text) {
-  try {
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ru-RU';
-    const voice = PERSONA.female ? /irina|svetlana|ekaterina|female/i : /pavel|dmitry|\bmale/i;
-    const v = speechSynthesis.getVoices().find((x) => /ru/i.test(x.lang) && voice.test(x.name)) ||
-      speechSynthesis.getVoices().find((x) => /ru/i.test(x.lang));
-    if (v) u.voice = v;
-    u.rate = 1.05;
-    speechSynthesis.speak(u);
-  } catch {}
 }
 
 // ---------- Эмоции и кадры ----------
@@ -609,7 +595,7 @@ dock.onTodos((list) => {
 let fromMe = false;
 
 dock.onAssistEvent((ev) => {
-  if (ev.type === 'reminder') {
+  if (ev.type === 'reminder' || ev.type === 'timer') {
     react('shock', '⏰ ' + ev.text, { hold: 2500, important: true, ms: 12000 });
     setTimeout(() => react('tip', null, { hold: 6000 }), 2500);
   } else if (ev.type === 'pomodoro') {
@@ -1019,7 +1005,7 @@ const DIRECT = [
   /^открой\s+(папку\s+)?(загрузки|документы|рабочий стол|изображения|картинки|фото|музыку|видео|корзину|этот компьютер|мой компьютер)$/,
   /^(помодоро|запусти помодоро|запусти фокус)/,
 ];
-const isDirect = (q) => { const l = q.toLowerCase().trim().replace(/[!?.]+$/, ''); return DIRECT.some((re) => re.test(l)) && !/^добавь\s+.+\s+в\s+(задач|очередь)/.test(l); };
+const isDirect = (q) => { const l = q.toLowerCase().trim().replace(/[!?.]+$/, ''); return !!AssistantCommands.parse(q, MusicServices.selected(cfg)) || (DIRECT.some((re) => re.test(l)) && !/^добавь\s+.+\s+в\s+(задач|очередь)/.test(l)); };
 
 async function askBrain(q) {
   if (isDirect(q)) return run(q);
@@ -1063,7 +1049,7 @@ async function weatherLine() {
     if (!result.ok) return result.message;
     const d = result.data;
     const high = d.daily.temperature_2m_max[0];
-    return `${w.city}: ${Math.round(d.current.temperature_2m)}°, ${weatherText(d.current.weather_code).toLowerCase()}${high == null ? '' : `, днём до ${Math.round(high)}°`}. Данные Яндекс Погоды`;
+    return `${w.city}: ${Math.round(d.current.temperature_2m)}°, ${(d.current.description || weatherText(d.current.weather_code)).toLowerCase()}${high == null ? '' : `, днём до ${Math.round(high)}°`}. Данные ${d.source}`;
   } catch { return null; }
 }
 
@@ -1105,16 +1091,22 @@ function parseWhen(l) {
 }
 
 const CAN = () => brainReady()
-  ? 'Спрашивай что угодно обычными словами. Могу открыть программу, сайт или папку, включить песню или видео, переключить музыку и громкость, Wi-Fi и Bluetooth, открыть нужные параметры Windows, добавить или закрыть задачу, поставить напоминание, рассказать погоду' +
+  ? 'Спрашивай что угодно обычными словами. Могу открыть программу, сайт или погоду, найти видео на YouTube, поставить таймер, запланировать и отменить выключение компьютера, включить музыку, добавить задачу или напоминание' +
     (brainState.providers[brainState.provider].search ? ' и поискать в интернете.' : '.')
-  : 'Пока я умею:\n• «открой Telegram», «открой сайт ютуб», «открой загрузки»\n• «включи Linkin Park Numb» — найду на YouTube\n• «выключи блютуз», «найди в интернете …»\n• «напомни через 10 минут позвонить», «напомни в 18:30 …»\n• «добавь задачу …», «задачи», «погода», «сводка»\n• «громче», «тише», «пауза», «дальше», «помодоро»\n' + line('canTail');
+  : 'Пока я умею:\n• «открой YouTube», «открой погоду»\n• «найди на Ютубе песню Бандана»\n• «таймер на пять минут», «сколько осталось», «отмени таймер»\n• «выключи компьютер через десять минут», «отмени выключение»\n• «напомни через 10 минут позвонить», «добавь задачу …»\n• «громче», «тише», «пауза», «помодоро»\n' + line('canTail');
 
 async function run(text, silentEcho) {
   const l = text.toLowerCase().trim().replace(/[!?.]+$/, '');
   let m;
   react('think', null, { hold: 600 });
 
-  const act = async (name, args, emo = 'tip') => { const r = await dock.assistAct(name, args); return react(r.ok ? emo : 'worry', r.text); };
+  const act = async (name, args, emo = 'tip') => {
+    if (['queue_song', 'playback_mode', 'add_to_playlist'].includes(name)) args = { ...args, service: MusicServices.forText(text, cfg) };
+    const r = await dock.assistAct(name, args); return react(r.ok ? emo : 'worry', r.text);
+  };
+  const quick = AssistantCommands.parse(text, MusicServices.selected(cfg));
+  if (quick) return quick.text ? react('tip', quick.text) : act(quick.name, quick.args);
+  if (/^включи\s+музыку$/.test(l) && !media?.active) return act('open_music', { service: MusicServices.selected(cfg) });
   // Перемешивание и повтор
   if (/^(перемешай|включи перемешивание|включи шафл|в случайном порядке)/.test(l)) return act('playback_mode', { shuffle: 'on', repeat: 'keep' });
   if (/^(выключи перемешивание|не перемешивай|по порядку|играй по порядку)/.test(l)) return act('playback_mode', { shuffle: 'off', repeat: 'keep' });
@@ -1148,13 +1140,13 @@ async function run(text, silentEcho) {
   if ((m = l.match(/^(?:открой|запусти|включи)\s+(.+)/)) && !/^музык/.test(m[1])) {
     const name = await dock.assistOpen(m[1]);
     if (name) return react('tip', line('open', { name }));
-    // «Включи …» — не программа, значит музыка (Spotify) или видео (YouTube)
+    // «Включи …» — не программа, значит музыка в выбранном сервисе или видео YouTube.
     if (/^включи/.test(l)) {
       react('think', null, { hold: 4000 });
       const video = /(видео|клип|ролик|ютуб|youtube)/.test(l);
       const query = text.trim().replace(/^включи\s+(?:мне\s+)?(?:песню|трек|видео|клип|ролик|альбом|плейлист)?\s*/i, '').replace(/\s+(?:на|в)\s+(?:ютубе|youtube|спотифай|spotify)\s*$/i, '');
       const kind = /(любим|лайкнут)/.test(l) ? 'liked' : /альбом/.test(l) ? 'album' : /плейлист/.test(l) ? 'playlist' : /^включи\s+(?:что-нибудь|что-то)\s+(?:из|от)\s+/.test(l) ? 'artist' : 'track';
-      return act('play_media', { query: query.replace(/^(?:что-нибудь|что-то)\s+(?:из|от)\s+/i, ''), service: video ? 'youtube' : 'spotify', kind }, 'joy');
+      return act('play_media', { query: query.replace(/^(?:что-нибудь|что-то)\s+(?:из|от)\s+/i, ''), service: video ? 'youtube' : MusicServices.forText(text, cfg), kind }, 'joy');
     }
     return react('think', line('notFound', { q: m[1] }));
   }
@@ -1199,7 +1191,7 @@ async function run(text, silentEcho) {
     react('think', null, { hold: 1500 });
     return react('idea', await summary(), { hold: 7000, important: !!silentEcho });
   }
-  if (/(?:помодоро|фокус|таймер)/.test(l)) { dock.assistPomodoro(); return react('tip', line('pomodoro')); }
+  if (/(?:помодоро|фокус)/.test(l)) { dock.assistPomodoro(); return react('tip', line('pomodoro')); }
 
   if (/(?:привет|здравствуй|хай|добрый)/.test(l)) { playAct('wave'); return react('joy', pick(LINES.hello)); }
   if (/(?:спасибо|благодарю|спс)/.test(l)) return react('smug', pick(LINES.thanks));

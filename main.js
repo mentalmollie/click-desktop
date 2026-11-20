@@ -1,5 +1,5 @@
 const {
-  app, BrowserWindow, ipcMain, screen, Tray, Menu, shell, nativeImage, nativeTheme, Notification, dialog, powerMonitor, session, safeStorage,
+  app, BrowserWindow, ipcMain, screen, Tray, Menu, shell, nativeImage, nativeTheme, Notification, dialog, powerMonitor, session,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -12,8 +12,13 @@ const { createBrain } = require('./brain.js');
 const { createVoice } = require('./voice.js');
 const { createSpotify } = require('./spotify.js');
 const { createUpdater } = require('./updates.js');
+const { createUpdateScheduler } = require('./update-scheduler.js');
 const updateChannel = require('./update-channel.json');
 const { createWeather } = require('./weather.js');
+const { createAssistantJobs, formatDuration } = require('./assistant-jobs.js');
+const MusicServices = require('./music-service.js');
+const { createYandexMusic, isYandexMusicUrl, findYandexMusicExecutable, createNativeOpener } = require('./yandex-music.js');
+const { createTrayManager } = require('./tray-manager.js');
 const bundledNotes = require('./release-notes.json');
 
 const CONFIG_PATH = dataPath('config.json');
@@ -23,6 +28,7 @@ const PANEL_SIZE = { calendar: [300, 340], todos: [330, 410], media: [360, 300],
 const TASKBAR_PAUSE = path.join(process.env.TEMP || os.tmpdir(), 'glassdock-taskbar.pause');
 
 const DEFAULTS = {
+  updates: { autoCheck: true },
   weather: { city: 'Москва', lat: 55.75, lon: 37.62 },
   widgets: {
     start: true, social: true, system: true, openApps: true, media: true, tasks: true, pomodoro: true, disk: true, tray: true, clock: true,
@@ -41,7 +47,7 @@ const DEFAULTS = {
   assistant: { enabled: true, persona: 'patrick', brain: { enabled: true, provider: 'gemini', models: {} },
     voice: { enabled: false, engine: 'groq', model: 'small', sensitivity: 0.5, device: '' },
     // Звук печати ответа в облачке: typewriter | blip | off (typesound.js)
-    typeSound: 'typewriter', typeVolume: 0.4, mode: 'sit', pos: 0.88, size: 'm', talk: 'normal', speak: false, muteUntil: 0, reminders: [] },
+    typeSound: 'typewriter', typeVolume: 0.4, mode: 'sit', pos: 0.88, size: 'm', talk: 'normal', musicService: 'spotify', muteUntil: 0, reminders: [] },
   widgetOrder: DEFAULT_ORDER,
   layoutZones: {},
   panelSizes: {},
@@ -71,6 +77,11 @@ const updates = createUpdater({
     child.once('spawn', () => { child.unref(); resolve(); setTimeout(() => app.quit(), 250); });
   }),
 });
+
+const updateScheduler = createUpdateScheduler({ check: () => {
+  if (['downloading', 'installing'].includes(updates.status().phase)) return;
+  return updates.check();
+} });
 
 // ---------- Конфиг ----------
 
@@ -110,6 +121,7 @@ function loadConfig() {
   let file = {};
   try { file = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch {}
   const cfg = {
+    updates: { autoCheck: file.updates?.autoCheck !== false },
     weather: { ...DEFAULTS.weather, ...file.weather },
     widgets: { ...DEFAULTS.widgets, ...file.widgets },
     pomodoro: { ...DEFAULTS.pomodoro, ...file.pomodoro },
@@ -162,6 +174,9 @@ function loadConfig() {
 }
 
 function removeLegacyIntegrations(cfg) {
+  delete cfg.assistant.speak;
+  if (cfg.assistant.voice) delete cfg.assistant.voice.spokenReplies;
+  cfg.assistant.musicService = MusicServices.selected(cfg);
   delete cfg.island;
   delete cfg.widgets.island;
   delete cfg.widgetOpts.island;
@@ -173,13 +188,14 @@ function removeLegacyIntegrations(cfg) {
   if (b.models) delete b.models.anthropic;
 }
 
-const weather = createWeather({ keyPath: dataPath('weather-yandex.key'), safeStorage, config: () => config.weather });
+const weather = createWeather({ config: () => config.weather });
 
 let socialKey = '';
 const socialKeyOf = (cfg) => JSON.stringify([cfg.social.accounts, cfg.social.ytKey, cfg.social.vkToken]);
 function saveConfig(cfg) {
   removeLegacyIntegrations(cfg);
   config = cfg;
+  updateScheduler.setEnabled(config.updates?.autoCheck !== false);
   // Добавили или изменили аккаунт соцсети — сразу узнаём число подписчиков
   const sk = socialKeyOf(cfg);
   if (sk !== socialKey) setTimeout(refreshSocial, 300);
@@ -1191,8 +1207,7 @@ ipcMain.on('assist:menu', () => {
     { type: 'separator' },
     { label: 'Сводка дня', click: () => send('сводка') },
     { label: 'Мои напоминания', click: () => send('напоминания') },
-    { label: muted ? 'Пусть снова говорит' : 'Помолчи час', click: () => { a.muteUntil = muted ? 0 : Date.now() + 3600e3; saveConfig(config); } },
-    { label: 'Говорить вслух', type: 'checkbox', checked: !!a.speak, click: (i) => { a.speak = i.checked; saveConfig(config); } },
+    { label: muted ? 'Снова показывать реплики' : 'Скрыть реплики на час', click: () => { a.muteUntil = muted ? 0 : Date.now() + 3600e3; saveConfig(config); } },
     { label: `Слушать имя «${p.name}»`, type: 'checkbox', checked: !!a.voice.enabled, click: (i) => { a.voice.enabled = i.checked; saveConfig(config); } },
     { type: 'separator' },
     { label: 'Настройки ассистента…', click: () => { openSettings(); setTimeout(() => settingsWin && settingsWin.webContents.send('goto', 'assistant'), 700); } },
@@ -1203,7 +1218,7 @@ ipcMain.on('assist:menu', () => {
 // Сколько секунд пользователь ничего не трогал — чтобы Патрик засыпал
 setInterval(() => { if (alive(assistWin) && assistOn()) assistWin.webContents.send('assist:idle', powerMonitor.getSystemIdleTime()); }, 5000);
 
-// Напоминания: хранятся в конфиге, проверяем раз в 10 секунд
+// Напоминания и произвольные таймеры: проверяем раз в секунду.
 setInterval(() => {
   if (!config || !config.assistant.reminders.length) return;
   const now = Date.now();
@@ -1212,10 +1227,10 @@ setInterval(() => {
   config.assistant.reminders = config.assistant.reminders.filter((r) => r.at > now);
   saveConfig(config);
   for (const r of due) {
-    if (Notification.isSupported()) new Notification({ title: `${assistantOf(config).name} напоминает`, body: r.text }).show();
-    if (alive(assistWin)) assistWin.webContents.send('assist:event', { type: 'reminder', text: r.text });
+    if (Notification.isSupported()) new Notification({ title: r.kind === 'timer' ? 'Таймер завершён' : `${assistantOf(config).name} напоминает`, body: r.text }).show();
+    if (alive(assistWin)) assistWin.webContents.send('assist:event', { type: r.kind === 'timer' ? 'timer' : 'reminder', text: r.text });
   }
-}, 10000);
+}, 1000);
 
 ipcMain.handle('assist:remind', (_e, at, text) => {
   config.assistant.reminders.push({ id: Date.now().toString(36), at, text });
@@ -1328,6 +1343,34 @@ function runRadio(kind, state) {
 // GLASSDOCK_DRYRUN=1 — для проверок: действия не выполняются, а записываются в actLog
 const DRY = !!process.env.GLASSDOCK_DRYRUN;
 const actLog = [];
+const openNativeYandexMusic = createNativeOpener({ spawn });
+const yandexMusic = createYandexMusic({
+  available: () => DRY || !!findYandexMusicExecutable(),
+  openExternal: async (uri) => { if (DRY) actLog.push({ open: uri }); else await openNativeYandexMusic(uri); },
+});
+ipcMain.handle('music:yandex:status', () => yandexMusic.status());
+const assistantJobs = createAssistantJobs({
+  getReminders: () => config.assistant.reminders || [],
+  saveReminders: (list) => { config.assistant.reminders = list; saveConfig(config); },
+  confirmShutdown: async (seconds) => {
+    if (DRY) { actLog.push({ confirmShutdown: seconds }); return false; }
+    const r = await dialog.showMessageBox({ type: 'question', title: 'Выключение компьютера',
+      message: seconds ? `Выключить компьютер через ${formatDuration(seconds)}?` : 'Выключить компьютер сейчас?',
+      detail: 'Сохрани открытые документы. Для отмены можно сказать «отмени выключение» или нажать отмену в настройках ассистента. При выходе из Click отложенное выключение отменится.',
+      buttons: [seconds ? 'Запланировать выключение' : 'Выключить', 'Отмена'], defaultId: 1, cancelId: 1, noLink: true });
+    return r.response === 0;
+  },
+  shutdown: () => new Promise((resolve, reject) => {
+    if (DRY) { actLog.push({ shutdown: true }); resolve(); return; }
+    execFile(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'shutdown.exe'), ['/s', '/t', '0'], { windowsHide: true }, (error) => error ? reject(error) : resolve());
+  }),
+  notify: (text) => {
+    if (Notification.isSupported()) new Notification({ title: 'Click — выключение компьютера', body: text }).show();
+    if (alive(assistWin)) assistWin.webContents.send('assist:event', { type: 'reminder', text });
+  },
+});
+setInterval(() => { if (app.isReady() && !app.isQuitting) assistantJobs.tick().catch(() => {}); }, 1000);
+ipcMain.handle('assist:jobs', () => assistantJobs.status());
 async function assistAct(name, a = {}) {
   const r = await assistActNow(name, a);
   if (DRY) { actLog.push({ name, a, r }); if (actLog.length > 50) actLog.shift(); }
@@ -1337,10 +1380,30 @@ ipcMain.handle('assist:actLog', () => (DRY ? actLog : null));
 async function assistActNow(name, a = {}) {
   const open = (url) => { if (DRY) actLog.push({ open: url }); else shell.openExternal(url); };
   switch (name) {
+    case 'open_music': {
+      if ((a.service || MusicServices.selected(config)) === 'yandex_music') return yandexMusic.open();
+      open('spotify:');
+      return { ok: true, text: 'Открыто приложение Spotify.' };
+    }
+    case 'start_timer': case 'list_timers': case 'cancel_timer': case 'schedule_shutdown': case 'cancel_shutdown': case 'shutdown_status':
+      return assistantJobs.act(name, a);
+    case 'open_weather': {
+      if (DRY) actLog.push({ open: 'panel:weather' });
+      else if (panelShown() && panelMode === 'weather') panel.focus();
+      else await openPanel('weather', win.getBounds().width / win.webContents.getZoomFactor() * 0.8);
+      return { ok: true, text: `${assistantOf(config).female ? 'Открыла' : 'Открыл'} прогноз погоды.` };
+    }
+    case 'search_youtube': {
+      const query = String(a.query || '').trim().slice(0, 300);
+      if (!query) return { ok: false, text: 'Что найти на YouTube?' };
+      open('https://www.youtube.com/results?search_query=' + encodeURIComponent(query));
+      return { ok: true, text: `Открыт поиск на YouTube: «${query}».` };
+    }
     case 'play_media': {
       const q = String(a.query || '').trim();
       if (!q) return { ok: false, text: 'Не сказано, что включить.' };
-      const svc = a.service || 'spotify';
+      const svc = ['spotify', 'yandex_music', 'youtube', 'youtube_music'].includes(a.service) ? a.service : MusicServices.selected(config);
+      if (svc === 'yandex_music') return yandexMusic.open(q);
       if (svc === 'spotify') {
         const sp = spotify.status();
         if (sp.ready) {
@@ -1367,11 +1430,11 @@ async function assistActNow(name, a = {}) {
         open('https://www.youtube.com/results?search_query=' + encodeURIComponent(q));
         return { ok: true, text: 'Не удалось выбрать видео — открыт поиск на YouTube.' };
       }
-      const urls = { youtube_music: 'https://music.youtube.com/search?q=', yandex_music: 'https://music.yandex.ru/search?text=' };
-      open((urls[svc] || urls.youtube_music) + encodeURIComponent(q));
-      return { ok: true, text: `Открыт поиск «${q}» — нажми на нужный трек (сам сервис не даёт включить сразу).` };
+      open('https://music.youtube.com/search?q=' + encodeURIComponent(q));
+      return { ok: true, text: `Открыт поиск «${q}» в YouTube Music. Нажми Play у нужного трека.` };
     }
     case 'queue_song': {
+      if ((a.service || MusicServices.selected(config)) === 'yandex_music') return { ok: false, text: 'Открой меню нужного трека в Яндекс Музыке и выбери «Добавить в очередь».' };
       const q = String(a.query || '').trim();
       if (!q) return { ok: false, text: 'Не сказано, что добавить.' };
       if (!spotify.status().ready) return { ok: false, text: 'Для очереди нужно войти в Spotify в настройках ассистента.' };
@@ -1384,6 +1447,7 @@ async function assistActNow(name, a = {}) {
       return { ok: false, text: 'Spotify не ответил: ' + (r.detail || r.error) };
     }
     case 'playback_mode': {
+      if ((a.service || MusicServices.selected(config)) === 'yandex_music') return { ok: false, text: 'Перемешивание и повтор можно включить кнопками плеера Яндекс Музыки.' };
       const sh = ['on', 'off'].includes(a.shuffle) ? a.shuffle : null;
       const rp = ['off', 'context', 'track'].includes(a.repeat) ? a.repeat : null;
       if (!sh && !rp) return { ok: false, text: 'Нечего менять.' };
@@ -1395,6 +1459,7 @@ async function assistActNow(name, a = {}) {
       return { ok: false, text: 'Spotify не ответил: ' + (r.detail || r.error) };
     }
     case 'add_to_playlist': {
+      if ((a.service || MusicServices.selected(config)) === 'yandex_music') return { ok: false, text: 'Открой меню трека в Яндекс Музыке, чтобы добавить его в свою коллекцию или плейлист.' };
       if (DRY) {
         const pl = await spotify.myPlaylist(String(a.playlist || '')).catch(() => null);
         actLog.push({ open: `spotify:add «${a.track || 'текущий'}» → ${pl ? pl.title : 'плейлист не найден'}` });
@@ -1417,6 +1482,7 @@ async function assistActNow(name, a = {}) {
       if (!/^https?:\/\//i.test(u)) u = /^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(u) ? 'https://' + u : '';
       if (!u) return { ok: false, text: 'Нужен адрес сайта.' };
       try { new URL(u); } catch { return { ok: false, text: 'Неправильный адрес.' }; }
+      if (isYandexMusicUrl(u)) return yandexMusic.openLink(u);
       open(u);
       return { ok: true, text: `Открыт сайт ${new URL(u).hostname}.` };
     }
@@ -1488,7 +1554,7 @@ const brain = createBrain({
     return hit ? hit.name : null;
   },
   act: (name, input) => assistAct(name, input),
-  playlists: () => spotify.playlistNames(),
+  playlists: () => MusicServices.selected(config) === 'spotify' ? spotify.playlistNames() : [],
   mediaKey: (name, times) => { if (DRY) { actLog.push({ open: `key:${name}x${times}` }); return; } for (let i = 0; i < times; i++) sendKey(ASSIST_KEYS[name]); },
   pomodoro: () => alive(win) && win.webContents.send('pomodoro:start'),
   addReminder: (at, text) => {
@@ -1506,7 +1572,7 @@ const brain = createBrain({
     try {
       const d = await weather.get(), c = d.current;
       const days = d.daily.time.slice(0, 3).map((t, i) => `${t}: ${Math.round(d.daily.temperature_2m_min[i])}…${Math.round(d.daily.temperature_2m_max[i])}°, ${weatherText(d.daily.weather_code[i])}`);
-      return `${config.weather.city} сейчас: ${Math.round(c.temperature_2m)}°, ${weatherText(c.weather_code)}. Данные Яндекс Погоды.\n` + days.join('\n');
+      return `${config.weather.city} сейчас: ${Math.round(c.temperature_2m)}°, ${c.description || weatherText(c.weather_code)}. Данные ${d.source}.\n` + days.join('\n');
     } catch (e) { return e.message; }
   },
 });
@@ -1583,15 +1649,26 @@ function mediaName(source) {
 
 // ---------- Скрытые значки (трей) ----------
 
-let trayItems = [];
-let trayLoadedAt = 0;
-
-async function loadTray(force) {
-  if (!force && Date.now() - trayLoadedAt < 20000) return trayItems;
-  const own = process.execPath.toLowerCase();
-  trayItems = (await runScript('tray.ps1')).filter((t) => t.exe.toLowerCase() !== own);
-  trayLoadedAt = Date.now();
-  return trayItems;
+function trayScript(file, args = []) {
+  return new Promise((resolve, reject) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, file), ...args],
+    { windowsHide: true, timeout: 20000, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' }, (error, out) => {
+      if (error) { reject(error); return; }
+      try { resolve(JSON.parse(out)); } catch { reject(new Error('Не удалось прочитать данные скрытых значков.')); }
+    }));
+}
+const trayManager = createTrayManager({
+  ownExecutable: process.execPath,
+  readItems: () => trayScript('tray.ps1'),
+  endTask: (exe) => trayScript('tray-end-task.ps1', ['-ExePath', exe, '-OwnerProcessId', String(process.pid)]),
+  onUpdated: (items) => { for (const w of [win, panel]) if (alive(w)) w.webContents.send('tray:updated', items); },
+});
+const loadTray = (force) => trayManager.list(force === true);
+async function trayEndTask(exe) {
+  const send = (result) => { for (const w of [win, panel]) if (alive(w)) w.webContents.send('tray:result', result); };
+  send({ ok: true, text: 'Завершаю задачу…' });
+  const result = await trayManager.close(exe);
+  send(result);
+  if (!result.ok && Notification.isSupported()) new Notification({ title: 'Click — скрытые значки', body: result.text }).show();
 }
 
 function trayOpen(exe) {
@@ -1602,6 +1679,9 @@ function trayOpen(exe) {
 }
 
 function trayMenu(exe, from) {
+  const item = trayManager.current().find((t) => t.exe.toLowerCase() === String(exe).toLowerCase());
+  if (!item) return;
+  exe = item.exe;
   const pinned = config.trayPinned.includes(exe);
   Menu.buildFromTemplate([
     { label: 'Открыть', click: () => trayOpen(exe) },
@@ -1614,7 +1694,7 @@ function trayMenu(exe, from) {
     },
     { label: 'Папка программы', click: () => shell.showItemInFolder(exe) },
     { type: 'separator' },
-    { label: 'Завершить программу', click: () => execFile('taskkill', ['/im', path.basename(exe)], { windowsHide: true }) },
+    { label: 'Завершить задачу', click: () => trayEndTask(exe) },
   ]).popup({ window: from, callback: () => { panelMenuOpen = false; } });
   panelMenuOpen = from === panel;
 }
@@ -2030,6 +2110,14 @@ for (const method of ['check', 'download', 'install']) ipcMain.handle('updates:'
 ipcMain.on('updates:cancel', (e) => { if (alive(settingsWin) && e.sender === settingsWin.webContents) updates.cancel(); });
 ipcMain.on('updates:website', () => shell.openExternal(updateChannel.websiteUrl));
 ipcMain.on('updates:github', () => shell.openExternal(updateChannel.githubUrl));
+ipcMain.on('updates:releases', () => shell.openExternal(updateChannel.githubUrl + '/releases'));
+ipcMain.handle('updates:preferences', () => ({ autoCheck: config.updates?.autoCheck !== false }));
+ipcMain.handle('updates:setAutoCheck', (e, value) => {
+  if (!alive(settingsWin) || e.sender !== settingsWin.webContents || typeof value !== 'boolean') throw new Error('Откройте обновления в настройках Click.');
+  config.updates = { autoCheck: value };
+  saveConfig(config);
+  return { autoCheck: value };
+});
 ipcMain.handle('updates:history', async () => {
   const local = { version: app.getVersion(), notes: bundledNotes.notes, date: null };
   try {
@@ -2037,17 +2125,13 @@ ipcMain.handle('updates:history', async () => {
     return { releases: remote.some((r) => r.version === local.version) ? remote : [local, ...remote], offline: false };
   } catch { return { releases: [local], offline: true }; }
 });
-ipcMain.handle('weather:get', async () => { try { return { ok: true, data: await weather.get() }; } catch (e) { return { ok: false, message: e.message }; } });
+ipcMain.handle('weather:get', async (_e, force) => { try { return { ok: true, data: await weather.get(force === true) }; } catch (e) { return { ok: false, message: e.message }; } });
 ipcMain.handle('weather:status', () => weather.status());
-ipcMain.handle('weather:key', (e, key) => {
+ipcMain.handle('weather:search', async (e, query) => {
   if (!alive(settingsWin) || e.sender !== settingsWin.webContents) throw new Error('Откройте настройки погоды.');
-  const status = weather.setKey(key);
-  config.weather.connectionRevision = (config.weather.connectionRevision || 0) + 1;
-  saveConfig(config);
-  return status;
+  try { return { ok: true, items: await weather.search(query) }; } catch (error) { return { ok: false, message: error.message }; }
 });
-ipcMain.on('weather:portal', () => shell.openExternal('https://yandex.ru/pogoda/b2b/console'));
-ipcMain.on('weather:website', () => shell.openExternal(`https://yandex.ru/pogoda/?lat=${Number(config.weather.lat)}&lon=${Number(config.weather.lon)}`));
+ipcMain.on('weather:website', () => shell.openExternal('https://open-meteo.com/'));
 ipcMain.handle('sysinfo', async () => ({
   model: os.cpus()[0].model.trim(),
   cores: coreUsage(),
@@ -2268,6 +2352,8 @@ if (!app.requestSingleInstanceLock()) {
     app.setAppUserModelId('Click');
     migrateAutostart();
     config = loadConfig();
+    updateScheduler.setEnabled(config.updates.autoCheck);
+    powerMonitor.on('resume', () => updateScheduler.resume());
     socialKey = socialKeyOf(config);
     // Микрофон — только нашим окнам (страницы с диска) и только звук
     const ours = (u) => String(u || '').startsWith('file://');
@@ -2299,6 +2385,8 @@ if (!app.requestSingleInstanceLock()) {
   // Закрытие окна настроек не должно завершать док
   app.on('window-all-closed', () => {});
   app.on('before-quit', (e) => {
+    assistantJobs.stop();
+    updateScheduler.stop();
     updates.cancel();
     // Сразу: таймеры дока перестают трогать окна, которые вот-вот закроются
     app.isQuitting = true;

@@ -1,7 +1,7 @@
 {
   "name": "glassdock",
   "productName": "Click",
-  "version": "1.0.6",
+  "version": "1.0.13",
   "description": "Стеклянный док с живыми виджетами для Windows",
   "main": "main.js",
   "scripts": {

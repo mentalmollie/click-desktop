@@ -481,9 +481,10 @@ async function refreshTray() {
   if (!config || !config.widgets.tray) return;
   const box = $('#trayPins');
   const pins = opt('tray').pinned ? config.trayPinned : [];
-  const items = pins.length ? await dock.trayList() : [];
+  const items = pins.length ? await dock.trayList().catch(() => null) : [];
+  if (!items) return;
   const shown = pins.map((exe) => items.find((t) => t.exe === exe)).filter(Boolean);
-  const key = shown.map((t) => t.exe).join('|');
+  const key = JSON.stringify(shown.map((t) => [t.exe, t.name, t.icon]));
   if (key === trayKey) return;
   trayKey = key;
   box.innerHTML = '';
@@ -692,24 +693,26 @@ async function refreshStats() {
   if (s.disk && s.disk.length) renderDisks(s.disk);
 }
 
-// ---------- Погода (Яндекс Погода; иконки в shared.js) ----------
+// ---------- Погода (Open-Meteo; иконки в shared.js) ----------
 
 let weatherKey = '';
 async function refreshWeather(force) {
   const w = config && config.weather;
   if (!w) return;
-  const key = [w.lat, w.lon, w.connectionRevision || 0].join(',');
+  const key = JSON.stringify([w.gismeteoId || '', w.city, w.region, w.lat, w.lon]);
   if (!force && key === weatherKey) return;
   weatherKey = key;
   try {
     const result = await dock.weather();
     if (!result.ok) throw new Error(result.message);
     const d = result.data;
+    if (weatherKey !== key) return;
     const c = d.current;
     $('#wicon').innerHTML = weatherIcon(c.weather_code, c.is_day);
     $('#wtemp').textContent = `${Math.round(c.temperature_2m)}°`;
-    $('#weather').title = w.city + ' · Яндекс Погода';
+    $('#weather').title = w.city + ' · Данные ' + d.source;
   } catch (e) {
+    if (weatherKey !== key) return;
     weatherKey = '';
     $('#wicon').innerHTML = '';
     $('#weather').title = e.message;
@@ -847,7 +850,8 @@ dock.config().then((cfg) => {
 });
 renderPomo();
 setInterval(refreshApps, 4000);
-setInterval(refreshTray, 20000);
+setInterval(() => refreshTray().catch(() => {}), 5000);
+dock.onTrayUpdated(() => refreshTray().catch(() => {}));
 setInterval(refreshStats, 2000);
 setInterval(() => refreshWeather(true), 15 * 60 * 1000);
 setInterval(refreshClock, 1000);

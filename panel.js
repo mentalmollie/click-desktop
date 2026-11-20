@@ -43,7 +43,7 @@ const applyTint = (cfg) => {
   document.body.classList.toggle('tray-large', size === 'large');
 };
 dock.config().then(applyTint);
-dock.onConfig(applyTint);
+dock.onConfig((cfg) => { applyTint(cfg); if (panelMode === 'weather') loadWeather(); });
 
 dock.onPanelMode((mode) => {
   for (const id of ['calendar', 'todos', 'media', 'weather', 'system', 'disks', 'tray', 'start', 'social']) $('#' + id).classList.toggle('hidden', mode !== id);
@@ -132,14 +132,28 @@ async function loadDisks() {
 
 // ---------- Скрытые значки ----------
 
+let trayLoading = false, trayRenderKey = '', trayReadFailed = false;
 async function loadTray(force) {
+  if (trayLoading) return;
+  trayLoading = true; $('#trayRefresh').disabled = true;
+  try {
   const [items, cfg] = await Promise.all([dock.trayList(force), dock.config()]);
+  if (panelMode !== 'tray') return;
+  if (trayReadFailed) { $('#trayStatus').textContent = 'Обновляется автоматически. Правый клик — меню, закрепление и завершение задачи.'; trayReadFailed = false; }
   const grid = $('#trayGrid');
+  const key = JSON.stringify([items, cfg.trayPinned]);
+  if (key === trayRenderKey) return;
+  trayRenderKey = key;
+  const scroll = grid.scrollTop, focusedExe = document.activeElement?.dataset.exe;
   grid.innerHTML = '';
   for (const t of items) {
     const b = document.createElement('button');
+    b.dataset.exe = t.exe;
     b.title = t.name + '\n' + t.exe;
     if (t.icon) b.appendChild(Object.assign(document.createElement('img'), { src: t.icon }));
+    else {
+      const fallback = document.createElement('span'); fallback.className = 'tray-fallback'; fallback.textContent = (t.name || '?').slice(0, 1).toUpperCase(); b.appendChild(fallback);
+    }
     b.appendChild(Object.assign(document.createElement('span'), { textContent: t.name }));
     if (cfg.trayPinned.includes(t.exe)) b.appendChild(Object.assign(document.createElement('i'), { className: 'pin-dot' }));
     b.addEventListener('click', () => { dock.trayOpen(t.exe); dock.closePanel(); });
@@ -147,10 +161,16 @@ async function loadTray(force) {
     grid.appendChild(b);
   }
   if (!items.length) grid.innerHTML = '<div class="l-msg">Значков нет</div>';
-  grid.scrollTop = 0;
+  grid.scrollTop = scroll;
+  if (focusedExe) [...grid.querySelectorAll('button')].find((b) => b.dataset.exe === focusedExe)?.focus({ preventScroll: true });
+  } catch { trayReadFailed = true; $('#trayStatus').textContent = 'Не удалось обновить значки. Повторю автоматически.'; }
+  finally { trayLoading = false; $('#trayRefresh').disabled = false; }
 }
 $('#trayRefresh').addEventListener('click', () => loadTray(true));
 dock.onConfig(() => { if (panelMode === 'tray') loadTray(false); });
+setInterval(() => { if (panelMode === 'tray' && !document.hidden) loadTray(false); }, 3000);
+dock.onTrayUpdated(() => { if (panelMode === 'tray' && !document.hidden) loadTray(false); });
+dock.onTrayResult((result) => { trayReadFailed = false; $('#trayStatus').textContent = result.text; if (panelMode === 'tray') loadTray(true); });
 document.querySelectorAll('.quick button').forEach((b) => b.addEventListener('click', () => {
   const q = b.dataset.q;
   if (q === 'systemtray') dock.systemTray();
@@ -418,7 +438,8 @@ function renameGroup(gi) {
   if (el) inlineEdit(el, curGroups()[gi].name, (v) => { curGroups()[gi].name = v; saveLayout(); });
 }
 function renamePage(p) {
-  const el = document.querySelectorAll('.s-tab')[p];
+  // Одна страница рисуется заголовком .s-tab-title, несколько — вкладками .s-tab
+  const el = document.querySelectorAll('.s-tab, .s-tab-title')[p];
   if (el) inlineEdit(el, pages()[p].name, (v) => { pages()[p].name = v; saveLayout(); });
 }
 
@@ -609,6 +630,13 @@ function showMedia(m) {
     $('#pTitle').textContent = 'Ничего не играет';
     $('#pArtist').textContent = '';
     $('#lyrics').innerHTML = '';
+    // Сбрасываем всё от прошлого трека, чтобы при возобновлении текст загрузился заново
+    lyricsFor = '';
+    synced = null;
+    nowLine = -1;
+    $('#pPP').innerHTML = PLAY;
+    $('#pCover').style.backgroundImage = '';
+    $('#pProgress').classList.add('hidden');
     return;
   }
   $('#pTitle').textContent = m.title;
@@ -631,6 +659,7 @@ function position() {
 async function loadLyrics(m, key) {
   lyricsFor = key;
   synced = null;
+  nowLine = -1;
   const box = $('#lyrics');
   box.className = 'lyrics';
   box.innerHTML = '<div class="l-msg">Ищу текст песни…</div>';
@@ -750,7 +779,7 @@ async function loadWeather() {
     const c = d.current;
     $('#wNowIcon').innerHTML = weatherIcon(c.weather_code, c.is_day);
     $('#wNowTemp').textContent = `${Math.round(c.temperature_2m)}°`;
-    $('#wNowDesc').textContent = `${weatherText(c.weather_code)} · ${w.city} · Яндекс Погода`;
+    $('#wNowDesc').textContent = `${c.description || weatherText(c.weather_code)} · ${w.city} · ${d.source}`;
     $('#wMeta').innerHTML = '';
     for (const t of [c.apparent_temperature == null ? null : `Ощущается как ${Math.round(c.apparent_temperature)}°`, c.wind_speed_10m == null ? null : `Ветер ${Math.round(c.wind_speed_10m / 3.6)} м/с`, c.relative_humidity_2m == null ? null : `Влажность ${c.relative_humidity_2m}%`].filter(Boolean)) {
       $('#wMeta').appendChild(Object.assign(document.createElement('span'), { textContent: t }));
@@ -775,7 +804,7 @@ async function loadWeather() {
       const row = document.createElement('div');
       row.className = 'd';
       const left = (100 * (min - lo)) / (hi - lo || 1), right = 100 - (100 * (max - lo)) / (hi - lo || 1);
-      row.innerHTML = `<span>${k === 0 ? 'Сегодня' : DOW_SHORT[new Date(t).getDay()]}</span><svg viewBox="0 0 24 24">${weatherIcon(d.daily.weather_code[k])}</svg>` +
+      row.innerHTML = `<span>${k === 0 ? 'Сегодня' : DOW_SHORT[new Date(t + 'T12:00:00Z').getUTCDay()]}</span><svg viewBox="0 0 24 24">${weatherIcon(d.daily.weather_code[k])}</svg>` +
         `<span class="range-bar"><span class="min">${Math.round(min)}°</span><span class="bar"><i style="left:${left}%;right:${right}%"></i></span><span>${Math.round(max)}°</span></span>`;
       $('#wDays').appendChild(row);
     });
