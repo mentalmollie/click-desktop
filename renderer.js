@@ -4,6 +4,7 @@ const $ = (s) => document.querySelector(s);
 const setText = (el, v) => { v = String(v); if (el && el.textContent !== v) el.textContent = v; };
 const setStyle = (el, prop, v) => { v = String(v); if (el && el.style[prop] !== v) el.style[prop] = v; };
 const dockEl = $('#dock');
+installFileDrop(document, dock);
 let config = null;
 let lastPomoKey = '';
 
@@ -181,7 +182,7 @@ function iconButton(icon, title, fallback) {
 async function refreshApps() {
   const apps = await dock.apps();
   if (drag) return;
-  const key = apps.map((a) => a.name + a.capsule).join('|');
+  const key = JSON.stringify(apps.map((a) => [a.name, a.capsule, a.dropKey]));
   const left = $('#leftapps'), caps = $('#capapps');
   if (key !== appsKey) {
     appsKey = key;
@@ -190,6 +191,8 @@ async function refreshApps() {
     apps.forEach((a, i) => {
       const b = iconButton(a.icon, a.name, a.name);
       b.dataset.i = i;
+      b.dataset.fileTarget = JSON.stringify({ kind: 'pinned', key: a.dropKey });
+      b.title += '\nПеретащите файлы сюда; задержите над значком, чтобы показать окно';
       b.addEventListener('click', () => { if (!takeDragClick()) dock.launch(i); });
       // Средняя кнопка мыши — новое окно программы
       b.addEventListener('auxclick', (e) => { if (e.button === 1) dock.launch(i, true); });
@@ -459,6 +462,7 @@ function showWindows(data) {
     for (const o of data.open) {
       const b = iconButton(o.icon, '', o.exe.split('\\').pop());
       b.classList.add('running');
+      b.dataset.fileTarget = JSON.stringify({ kind: 'open', key: o.key });
       b.addEventListener('click', () => { if (!takeDragClick()) dock.focusWindow(o.key); });
       b.addEventListener('auxclick', (e) => { if (e.button === 1) dock.newWindow(o.key); });
       makeDraggable(b, { type: 'open', exe: o.exe });
@@ -467,7 +471,7 @@ function showWindows(data) {
   }
   data.open.forEach((o, i) => {
     const b = box.children[i];
-    b.title = o.title + '\nПеретащите к закреплённым, чтобы закрепить';
+    b.title = o.title + '\nПеретащите к закреплённым, чтобы закрепить\nФайлы: отпустите на значке или задержите, чтобы показать окно';
     b.classList.toggle('active', o.active);
     b.classList.toggle('multi', o.count > 1);
   });
@@ -490,6 +494,7 @@ async function refreshTray() {
   box.innerHTML = '';
   for (const t of shown) {
     const b = iconButton(t.icon, t.name, t.name);
+    b.dataset.fileTarget = JSON.stringify({ kind: 'tray', key: t.exe });
     b.addEventListener('click', () => dock.trayOpen(t.exe));
     b.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); dock.trayMenu(t.exe); });
     box.appendChild(b);

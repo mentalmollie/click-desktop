@@ -321,6 +321,9 @@ html.edge-pad, html.edge-pad body { background: rgba(0, 0, 0, 0.01); height: 100
 
 /* ---------- Перетаскивание иконок ---------- */
 
+.btn.file-drop-over { background: rgba(120, 157, 255, .3); box-shadow: inset 0 0 0 2px var(--blue); }
+.btn.file-drop-sent { background: rgba(102, 210, 155, .3); box-shadow: inset 0 0 0 2px var(--green); }
+
 .btn.dragging { z-index: 5; opacity: .85; transition: none; background: rgba(255, 255, 255, 0.14); }
 .btn.dragging.unpin { opacity: .35; }
 .wdragging { z-index: 5; transition: none !important; opacity: .92; box-shadow: 0 6px 20px rgba(0, 0, 0, .45); }

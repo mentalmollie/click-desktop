@@ -38,7 +38,7 @@ function Press([byte[]]$vks) {
     foreach ($vk in $vks) { $u::keybd_event($vk, 0, $(if ($extended -contains $vk) { 3 } else { 2 }), [UIntPtr]::Zero) }
 }
 
-function Activate([IntPtr]$h) {
+function Activate([IntPtr]$h, [bool]$allowKeys = $true) {
     if ($u::IsIconic($h)) { $u::ShowWindow($h, 9) | Out-Null }
     # Windows не даёт фоновому процессу забирать фокус. Сначала — без нажатий клавиш:
     # подключаемся к потоку ввода активного окна, и из него переключение разрешено.
@@ -52,6 +52,8 @@ function Activate([IntPtr]$h) {
     $u::SetForegroundWindow($h) | Out-Null
     if ($attached) { $u::AttachThreadInput($me, $fgThread, $false) | Out-Null }
     if ($u::GetForegroundWindow() -eq $h) { return }
+    # Во время OLE-перетаскивания Alt может изменить действие или прервать передачу файла.
+    if (-not $allowKeys) { return }
     # Запасной способ: Alt вместе с «пустой» клавишей 0xE8, чтобы не включать «режим меню»
     $u::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
     $u::keybd_event(0xE8, 0, 0, [UIntPtr]::Zero)
@@ -66,6 +68,7 @@ while ($null -ne ($line = $ChanIn.ReadLine())) {
     switch ($cmd) {
         'combo'     { Press ([byte[]]($arg -split ',' | ForEach-Object { [int]$_ })) }
         'activate'  { Activate ([IntPtr][long]$arg) }
+        'activate-drop' { Activate ([IntPtr][long]$arg) $false }
         'minimize'  { $u::ShowWindow([IntPtr][long]$arg, 6) | Out-Null }
         'noactivate' {
             # Окно не забирает фокус при клике, но нажатие мыши получает (WS_EX_NOACTIVATE)

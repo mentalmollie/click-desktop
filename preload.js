@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('dock', {
   resize: (w, h, content) => ipcRenderer.send('resize', w, h, content),
@@ -55,6 +55,12 @@ contextBridge.exposeInMainWorld('dock', {
   resizeReset: () => ipcRenderer.send('panel:rs-reset'),
   panelHeight: (h) => ipcRenderer.send('panel:height', h),
   launch: (i, forceNew) => ipcRenderer.send('launch', i, forceNew),
+  fileDrag: (active) => ipcRenderer.send('dock:file-drag', active === true),
+  fileHover: (target) => ipcRenderer.invoke('dock:file-hover', target),
+  dropFiles: (target, files) => {
+    const paths = Array.from(files, file => webUtils.getPathForFile(file));
+    return ipcRenderer.invoke('dock:drop-files', target, paths);
+  },
   appMenu: (i) => ipcRenderer.send('app:menu', i),
   onWindows:(cb) => ipcRenderer.on('windows', (_e, data) => cb(data)),
   focusWindow: (key) => ipcRenderer.send('window:focus', key),

@@ -15,6 +15,8 @@ jobs:
       - name: Check Click behavior
         shell: pwsh
         run: |
+          node tools/test-file-drop.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tools/test-dock.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tools/test-flight.js

@@ -19,6 +19,7 @@ const { createAssistantJobs, formatDuration } = require('./assistant-jobs.js');
 const MusicServices = require('./music-service.js');
 const { createYandexMusic, isYandexMusicUrl, findYandexMusicExecutable, createNativeOpener } = require('./yandex-music.js');
 const { createTrayManager } = require('./tray-manager.js');
+const { createFileDrop } = require('./file-drop.js');
 const bundledNotes = require('./release-notes.json');
 
 const CONFIG_PATH = dataPath('config.json');
@@ -266,6 +267,7 @@ let dockSlideId = 0;
 let hideAt = 0;
 
 const autoHideOn = () => !!(config && config.appearance.autoHide);
+let fileDragUntil = 0;
 
 function hiddenBounds() {
   const db = screen.getPrimaryDisplay().bounds;
@@ -328,7 +330,7 @@ function autoHideTick() {
   const overDock = c.x >= t.x - 8 && c.x <= t.x + t.width + 8 &&
     (top ? c.y <= t.y + t.height + 8 : c.y >= t.y - 8);
   // Пока открыто всплывающее окно или меню — док не прячется
-  const keep = (alive(panel) && panel.isVisible()) || panelMenuOpen;
+  const keep = (alive(panel) && panel.isVisible()) || panelMenuOpen || Date.now() < fileDragUntil;
   if (!dockShown) {
     if (atEdge) showDock();
     return;
@@ -2059,6 +2061,50 @@ async function createTray() {
 // ---------- IPC ----------
 
 ipcMain.on('resize', (_e, w, h, content) => placeWindow(w, h, content));
+const fileDrop = createFileDrop({
+  resolveTarget: (target) => {
+    if (!target || typeof target.key !== 'string') return null;
+    const groups = windowGroups();
+    if (target.kind === 'pinned') {
+      const a = config.apps.find(a => a.path.toLowerCase() === target.key.toLowerCase());
+      if (!a) return null;
+      const g = groupFor(groups, a);
+      return { path: a.path, args: a.args, window: g && (g.wins.find(w => w.h === lastFg) || g.wins[0])?.h };
+    }
+    if (target.kind === 'open') {
+      const g = groups.find(g => g.exe.toLowerCase() === target.key.toLowerCase());
+      if (g) return { path: g.exe, window: (g.wins.find(w => w.h === lastFg) || g.wins[0])?.h };
+    }
+    if (target.kind === 'tray' && config.trayPinned.some(exe => exe.toLowerCase() === target.key.toLowerCase())) {
+      const item = trayManager.current().find(t => t.exe.toLowerCase() === target.key.toLowerCase());
+      const g = groups.find(g => g.exe.toLowerCase() === target.key.toLowerCase());
+      if (item) return { path: item.exe, window: g && (g.wins.find(w => w.h === lastFg) || g.wins[0])?.h };
+    }
+    return null;
+  },
+  stat: filename => fs.promises.stat(filename),
+  activate: hwnd => { hidePanel(); sendCmd('activate-drop ' + hwnd); },
+  launch: (exe, args) => new Promise((resolve, reject) => {
+    const child = spawn(exe, args, { detached: true, stdio: 'ignore', shell: false });
+    child.once('error', reject);
+    child.once('spawn', () => { child.unref(); resolve(); });
+  }),
+});
+ipcMain.on('dock:file-drag', (e, active) => {
+  if (!alive(win) || e.sender !== win.webContents) return;
+  fileDragUntil = active === true ? Date.now() + 1600 : 0;
+  if (active === true) showDock();
+});
+ipcMain.handle('dock:file-hover', (e, target) => {
+  if (!alive(win) || e.sender !== win.webContents) return { ok: false };
+  return fileDrop.hover(target);
+});
+ipcMain.handle('dock:drop-files', async (e, target, files) => {
+  if (!alive(win) || e.sender !== win.webContents) return { ok: false };
+  const result = await fileDrop.drop(target, files);
+  if (!result.ok && alive(win)) dialog.showMessageBox(win, { type: 'info', title: 'Передача файлов', message: 'Не удалось передать файлы приложению', detail: result.message, buttons: ['Понятно'] });
+  return result;
+});
 ipcMain.on('launch', (_e, i, forceNew) => {
   const a = config.apps[i];
   if (!a) return;
@@ -2241,6 +2287,7 @@ ipcMain.handle('apps', async () => {
   const running = await runningNow();
   return Promise.all(config.apps.map(async (a) => ({
     name: a.name,
+    dropKey: a.path,
     capsule: a.capsule,
     icon: a.path.startsWith('shell:AppsFolder\\') ? startIcons[a.path.slice(17)] || null : await appIcon(a.icon || a.path),
     running: running.has((a.process || path.basename(a.path)).toLowerCase()),
